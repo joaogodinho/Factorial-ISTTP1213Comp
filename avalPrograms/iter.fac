@@ -1,0 +1,9 @@
+=< iter.fac
+	Implements fact function iteratively
+=>
+
+public number fact (integer i) {
+	integer x
+	fact := 1
+	for x in 0 upto i do { fact := fact * x; }
+};

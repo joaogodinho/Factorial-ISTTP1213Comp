@@ -1,0 +1,19 @@
+=< fact.fac
+	Takes an integer to calculate factorial
+	or if none is provided, calculates 5!
+=>
+
+public void prints(string s)
+public void printd(number d)
+public integer atoi(string s)
+public number fact(integer i)
+
+public integer entry(integer argc, string *argv, string *envp) {
+	if argc = 2 then {
+		printd(fact(atoi(argv[1])))
+	} else if argc > 2 then {
+		prints("Incorrect number of arguments.\n")
+	} else {
+		printd(fact(5))
+	}
+};

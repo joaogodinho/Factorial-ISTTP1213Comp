@@ -1,0 +1,26 @@
+=< mean.fac
+	Provides a program that generates n random numbers
+	provided in arguments and calculates their average
+=>
+
+public void prints(string s)
+public integer atoi(string s)
+public integer rand()
+
+public void entry(integer argc, string *argv, string *envp) {
+	if argc = 2 then {
+		integer sum
+		integer i
+		sum := 0
+		prints("Calculating average for: ")
+		for i in 0 upto atoi(argv[1]) do {
+			integer x 
+			x := rand()
+			printi(x); prints(" ")
+			sum := sum + x
+		}
+		prints(": "); printi(sum / i)
+	} else { 
+		prints("Incorrect number of arguments.\n") 
+	}
+};

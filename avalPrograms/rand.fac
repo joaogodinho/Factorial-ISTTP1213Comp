@@ -1,0 +1,16 @@
+=< rand.fac
+	Implements a pseudo-random integer generation
+	function
+=>
+
+integer x := 100003
+integer mul := 27983
+integer incr := 149
+integer mod := 1000000
+
+public integer rand () {
+	x := (x * mul + incr) % mod
+	rand := x
+};
+
+public void srand (integer seed) { x := seed; };

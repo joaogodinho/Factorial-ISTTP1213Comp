@@ -1,0 +1,37 @@
+=< string.fac
+	Implements strcmp, strcpy and strchr in factorial
+	language
+=>
+
+public integer strcmp (string str1, string str2) {
+	integer ptrPos
+	ptrPos := 0
+	if &str1 = &str2 then { strcmp := 0; }
+	else {
+		string *ptr1, string *ptr2
+		ptr1 := str1
+		ptr2 := str2
+		do { } while ptr1[ptrPos] = ptr2[ptrPos++];
+		ptr1 := ptr1 + --ptrPos
+		ptr2 := ptr2 + ptrPos
+		if *ptr1 > *ptr2 then { strcmp := 1; }
+		else if *ptr1 < *ptr2 then { strcmp := -1; }
+		else { strcmp := 0; }
+	}
+};
+
+public string strcpy (string dest, string source) {
+	integer ptrPos
+	for ptrPos in 0 upto source[ptrPos] <> 0 do { 
+		dest[ptrPos] := source[ptrPos]
+	}
+	dest[ptrPos] := 0
+	strcpy := dest
+};
+
+public string *strchr (string str, integer char) {
+	integer ptrPos
+	ptrPos := 0
+	do { } while str[ptrPos++] <> char;
+	strchr := &(str[ptrPos-1])
+};
