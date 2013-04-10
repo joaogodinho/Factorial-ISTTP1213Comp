@@ -1,0 +1,501 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
+<!-- saved from url=(0060)https://dspace.ist.utl.pt/bitstream/2295/1315768/1/proj.html -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>Projecto de Compiladores 2012/2013</title>
+<meta name="description" content="proj">
+<meta name="keywords" content="proj">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+
+
+
+</head>
+<body bgcolor="B5BDD6" link="red" vlink="green">
+  <center> <h1>Projecto de Compiladores</h1>
+  <h2>13 de Fevereiro de 2013</h2>
+  <h3>Departamento de Engenharia Informática</h3> <br> <br>
+
+</center> <hr size="2" noshade=""> <br>
+
+<br>
+<br>
+<br>
+<br>
+<br>
+
+<p>
+
+</p><h1><a name="SECTION00010000000000000000">
+1 - Generalidades</a>
+</h1>
+
+<p>
+Este projecto pretende desenvolver um compilador para
+uma linguagem de programação.
+Este compilador deverá efectuar a análise sintáctica e semântica da linguagem,
+produzindo como resultado código máquina (<i>assembly</i>) com selecção de
+instruções em <b>nasm</b> para <b>linux-elf32-i386</b>.
+O compilador deverá ser escrito em <b>C</b> com auxílio das ferramentas
+de análise lexical, sintáctica e selecção de instruções, respectivamente,
+<tt>flex</tt>, <tt>byacc</tt> e <tt>pburg</tt>.
+A geração automática de ficheiros intermédios
+deverá ser feita com recurso à ferramenta <b>gmake</b>, devendo
+o projecto incluir as <i>Makefile</i>s necessárias à sua construção.
+
+</p><p>
+A descrição da linguagem está disponível no manual de referência
+disponibilizado em separado.
+Esta descrição deve ser seguida rigorosamente, não sendo valorizada
+qualquer modificação ou extensão, antes pelo contrário.
+
+</p><p>
+O projecto é desenvolvido em grupos de 1 (um) ou 2 (dois) alunos.
+Os projectos desenvolvidos individualmente não necessitam de efectuar
+algumas partes da geração de código para atingir a classificação máxima.
+A inscrição é efectuada através do sistema fénix na área do alunos
+entre 1 e 15 de Abril (12:00).
+Os elementos do grupo podem pertencer a turmas diferentes.
+O projecto deverá ser desenvolvido gradualmente ao longo do semestre.
+
+</p><p>
+Apenas se consideram para avaliação os projectos submetidos no Fenix,
+contendo todos os ficheiros fontes necessários à resolução do projecto,
+em formato .tgz (ou .zip), até à data limite.
+A submissão de um projecto pressupõe o compromisso de honra que
+o trabalho incluso foi realizado pelos alunos que constituem o grupo.
+A quebra deste compromisso, ou seja a tentativa de um grupo se apropriar
+de trabalho realizado por colegas, tem como consequência a reprovação de
+todos os alunos envolvidos (incluindo os que possibilitaram a ocorrência)
+à disciplina neste ano lectivo.
+
+</p><p>
+Parte da nota do projecto é obtida através de testes automáticos,
+pelos que estas instruções devem ser seguidas rigorosamente.
+Caso os testes falhem por causas imputáveis ao grupo a nota reflectirá
+apenas os testes bem sucedidos.
+As restantes componentes da nota são obtidas pela análise do código
+entregue e pela avaliação do teste prático a realizar individualmente.
+O código é avaliado quanto à sua correcção, simplicidade e legibilidade.
+Para tal, os comentários, nomeadamente, não devem ser excessivos
+nem óbvios, por forma a dificultar a legibilidade, nem muito escassos,
+por forma a impedir a compreensão das partes mais complexas do programa.
+
+</p><p>
+
+</p><h3><a name="SECTION00011000000000000000">
+1.1 - Formato dos ficheiros</a>
+</h3>
+
+<p>
+O ambiente de trabalho da cadeira é <b>C</b> sobre <b>Linux</b> em
+arquitecturas <b>i386</b> com formato <b>elf32</b>. Embora os alunos possam fazer grande parte do
+desenvolvimento noutras máquinas com outros sistemas operativos, uma
+vez que quase todas as ferramentas existem disponíveis em código
+fonte, a avaliação pressupõe o seu desenvolvimento em <b>linux-elf32-i386</b>.
+Logo, todos os nomes dos ficheiros são em minúsculas, salvo
+referência explícita em contrário.
+As linhas dos ficheiros terminam exclusivamente em <tt>carriage-return</tt>
+(mudança do carreto, em português), ou seja o código
+0x0A (10 em decimal ou 012 em octal). Quaisquer erros resultantes da
+existêcia de outros caracteres, ou comportamentos específicos,
+são tratados como qualquer outro erro. Exemplos de teste
+que produzam erros na execução dos testes serão ignorados na avaliação.
+
+</p><h3><a name="SECTION00012000000000000000">
+1.2 - Dúvidas</a>
+</h3>
+
+<p>
+Nos casos omissos e se surgirem dúvidas na interpretação da especificação
+da linguagem de programação deve primeiro consultar a errata na secção de
+projecto disponível na página da cadeira e só depois, caso a dúvida subsista,
+consulte o professor responsável da cadeira.
+
+</p><p>
+
+</p><h2><a name="exemplos">
+2 - Programas em <b>factorial</b></a>
+</h2>
+
+<p>
+Antes de iniciar o desenvolvimento do compilador, propriamente dito,
+deverá desenvolver alguns programas de exemplo de
+aplicação da linguagem.
+Pretende-se, desta forma, verificar a correcta compreensão da
+linguagem de programação  <b>factorial</b>. <br>
+A escrita dos programas obriga a uma cuidadosa leitura do <tt>manual de
+referência</tt> por forma a garantir que os programas escritos não irão
+gerar erros de compilação ou execução.
+Estes mesmos programas servirão como padrões de teste quando o grupo
+estiver a desenvolver o compilador para a linguagem  <b>factorial</b> .
+Na entrega os programas deverão ter os nomes indicados. <br>
+Os ficheiros a serem gerados pelo compilador têm o mesmo nome dos ficheiros
+fonte, mas com a extensão <tt>.asm</tt> em vez de <tt>.fac</tt>.
+
+</p><dl>
+  <dt><strong><a name="string">
+  2.1 - Módulo de manipulação de cadeias de caracteres
+  </a></strong></dt><dd>
+O módulo será designado <tt>string.fac</tt> (e não
+<tt>String.fac</tt>, <tt>STRING.FAC</tt>, <tt>STRING.fac</tt>
+ou outra variante que a imaginação considere
+mais apropriada) e deverá conter os equivalentes em <b>factorial</b> das
+rotinas de <b>C</b>: <tt>strcmp</tt>, <tt>strcpy</tt> e <tt>strchr</tt>.
+(Como não existem caracteres individuais na linguagem, o segundo argumento
+ da rotina <tt>strchr</tt> é um <tt>integer</tt>)
+A rotina <tt>strcmp</tt> deverá ser utilizada pelo compilador final para a comparação
+de cadeias de caracteres.
+  </dd><dt><strong><a name="string">
+  2.2 - Programa de cáculo do factorial
+  </a></strong></dt><dd>
+O programa será constituído por 2 módulos e um programa, designados
+respectivamente por <tt>iter.fac</tt>, <tt>recurs.fac</tt> e
+<tt>fact.fac</tt>. Os 2 módulos definem apenas a função
+<tt>factorial</tt>, que recebe um argumento inteiro e devolve um
+número real em vírgula flutuante, que calcula o factorial do
+argumento iterativamente e recursivamente, respectivamente.
+O programa recebe como argumento opcional da linha de comandos o valor
+do factorial a calcular e imprimir, devendo calcular o factorial de <b>5</b> caso o
+argumento não seja indicado.
+Como as duas funções têm o mesmo nome apenas uma pode ser
+usada na produção do ficheiro executável final.
+Assim, a <tt>Makefile</tt>, em ambas as entregas, deverá produzir 2 ficheiros
+exectáveis, <tt>iter</tt> e <tt>recurs</tt>, ambos usando a mesma
+rotina principal e cada um usando a respectiva versão do
+cálculo do factorial. Não deve utilizar o operador factorial (!) uma vez
+que será um destes módulos a fornecer a rotina que realiza o referido operador
+quando o compilador estiver concluído.
+  </dd><dt><strong><a name="string">
+  2.3 - Média de sequências pseudo-aleatórias
+  </a></strong></dt><dd>
+O programa será constituído por um módulo e um
+programa, designados respectivamente por <tt>rand.fac</tt> e
+<tt>mean.fac</tt>.
+O módulo realiza uma rotina (<tt>public integer rand()</tt>) de geração de
+números inteiros pseudo-aleatórios, segundo o algoritmo congruencial com
+multiplicador <tt>27983</tt>, incremento <tt>149</tt> e módulo <tt>1000000</tt>.
+Ou seja, <tt>X(n+1) = ( X(n) * mul + incr ) % mod</tt>.
+O valor inicial, não negativo e inferior ao módulo, é iniciado a
+<tt>X(0) = 100003</tt>, podendo ser alterado pela rotina
+<tt>public void srand(integer)</tt>, que também faz parte do módulo.
+O programa lê do terminal o número de valores pseudo-aleatórios a gerar
+e imprime a média em vírgula flutuantedos valores gerados.
+</dd></dl>
+
+<h2><a name="compilador">
+3 - Compilador de <b>factorial</b></a>
+</h2>
+
+<p>
+É fortemente aconselhado proceder da seguinte forma na realização do projecto:
+</p><ul>
+  <li>Estruture previamente o compilador, identificando os seus módulos principais.
+  </li><li>Especifique com particular cuidado as estruturas de dados a usar.
+  	Caso opte por usar as versões de código
+	disponibilizado pela cadeira, deve compreender o seu funcionamento.
+  </li><li>Note que é mais fácil a modularização de um
+  	programa recorrendo a funções curtas com a funcionalidade
+	limitada e bem definida.
+  </li><li>Não tente definir a linguagem completa de uma só vez,
+  	começando por uma ou duas instruções (por exemplo,
+	escrita e atribuição), acrescentando gradualmente as restantes
+	instruções e operadores.
+  </li><li>Desenvolva cada uma das fase de análise e geração
+  	sucessivamente, não iniciando a seguinte antes de eliminar
+	os erros das anteriores. Utilize diversos ficheiros de exemplo,
+        incluindo os exemplos distribuídos, para testar as funcionalidades
+        do compilador nas suas sucessivas fases.
+</li></ul>
+<p>
+
+O desenvolvimento do compilador, em especial a geração de código,
+deve evoluir de forma a fazer programas em que o resultado é observável.
+Assim, sugere-se a seguinte sequência:
+</p><ul>
+  <li>Invocação de rotinas, em especial a impressão de cadeias de caracteres.
+  </li><li>Apenas definições globais, impressão e expressões do tipo inteiro.
+  </li><li>Instruções condicionais e de ciclo.
+  </li><li>Definição de funções.
+  </li><li>Tipo <tt>number</tt> para números reais.
+  </li><li>Expressões lógicas e tipo referência.
+  </li><li>Outras declarações e restante linguagem.
+</li></ul>
+<p>
+Para auxiliar o desenvolvimento do compilador é distribuído um compilador,
+designado por <b>compact</b> para uma linguagem simples,
+podendo os ficheiros distribuídos ser modificados sem restrições.
+Este compilador encontra-se na página da disciplina do Fénix.
+</p><p>
+
+</p><h3><a name="SECTION00031000000000000000">
+3.1 - Análise lexical</a>
+</h3>
+
+<p>
+A análise lexical da linguagem  <b>factorial</b> deverá ser realizada com o
+auxílio da ferramenta <b>flex</b>
+( invocada obrigatoriamente com a opção <b>-l</b> ).
+Com a análise lexical deverá ser possível remover comentários e
+espaços brancos, identificar literais ( valores constantes ), identificadores
+( nomes de variáveis e funções ), palavras chave, etc.
+Notar que a análise lexical não garante que estes elementos se encontrem
+pela ordem correcta.
+
+</p><p>
+O ficheiro da descrição lexical deverá ser processado pela ferramenta
+<tt>flex</tt> sem gerar qualquer tipo de avisos.
+As sequências de escape nas cadeias de caracteres deverão ser substituídas pelos respectivos caracteres, o espaço necessário para o texto
+dos identificadores e cadeias de caracteres deverá ser reservado antes
+de devolvido. Os valores literais deverão ser convertidos para o respectivo
+formato binário e testada a capacidade de representação da máquina.
+Na avaliação serão analisadas as expressões regulares utilizadas, bem
+como a robustez, clareza, simplicidade e extensibilidade da solução proposta.
+
+</p><p>
+Deverá ser produzido um ficheiro designado <b>factorial.l</b>, 
+contendo a análise lexical tal como será
+utilizada no compilador final. 
+
+
+
+</p><p>
+
+</p><h3><a name="SECTION00032000000000000000">
+3.2 Análise sintáctica</a>
+</h3>
+
+<p>
+A análise sintáctica da linguagem  <b>factorial</b> deverá ser realizada com o
+auxílio da ferramenta <b>byacc</b>.
+Com a análise semântica deverá ser possível garantir a correcta
+sequência dos símbolos, embora não se verifique se as variáveis
+utilizadas nas expressões estão declaradas, se algumas das operações suportam
+os tipos de dados utilizados, etc.
+
+</p><p>
+O ficheiro da gramática deverá ser processado pela ferramenta <tt>byacc</tt>
+sem gerar qualquer tipo de conflitos (shift-reduce ou reduce-reduce) nem
+erros ou avisos de qualquer espécie.
+Caso o ficheiro a processar contenha erros, estes devem ser identificados e
+descritos ao utilizador.
+Além disso, mesmo que sejam encontrados erros, o ficheiro em análise deve
+continuar a ser processado até ao fim, procurando outros erros.
+</p><p>
+Na avaliação será analisada a gramática entregue do
+ponto de vista verificações de consistência
+tratadas sintacticamente, das regras escolhidas e símbolos
+não terminais escolhidos, bem como a robustez, clareza,
+simplicidade e extensibilidade da solução proposta.
+
+</p><p>
+Posteriormente, podem ser associadas acções que permitam
+construir uma  árvore de análise sintáctica do programa
+a ser processado.
+
+</p><p>
+Deverá ser produzido um ficheiro designado <b>factorial.y</b>, 
+contendo a análise sintáctica tal como será
+utilizada no compilador final.
+
+
+</p><h3><a name="SECTION00033000000000000000">
+3.3 - Análise semântica</a>
+</h3>
+<p>
+
+A análise semântica da linguagem  <b>factorial</b> deverá garantir que um
+programa descrito na linguagem  <b>factorial</b> se encontra correctamente escrito
+e que pode ser executado.
+
+</p><p>
+Como resultado da análise semântica deverão ser identificados todos
+os erros estáticos (detectáveis no processo de compilação) ainda não detectados
+nas fases anteriores e produzidas mensagens de erro descritivas.
+Caso surjam erros semânticos (estáticos), o ficheiro deve ser integralmente
+processado e o compilador deverá terminar com um código de erro 1 (um).
+A detecção de qualquer na fase de análise inibe a geração de código, não
+devendo ser gerado qualquer ficheiro.
+
+</p><p>
+A análise semântica deve verificar, entre outros, a prévia declaração dos
+identificadores a utilizar, bem como a consistência de tipos das operações
+permitidas pela linguagem (tabela de símbolos).
+Notar que após a análise semântica não podem ser identificados mais erros
+no programa fonte a compilar. Logo nenhuma verificação necessária pode
+ficar por efectuar após a análise semântica.
+
+</p><p>
+
+</p><h3><a name="SECTION00034000000000000000">
+3.4 Entrega intermédia: primeira parte do compilador</a>
+</h3>
+<p>
+O programa, após a análise, deverá resultar
+nos ficheiros <tt>factorial.y</tt>, <tt>factorial.l</tt>, além 
+dos ficheiros auxiliares que achar necessários.
+O programa produzido pela <tt>Makefile</tt> deverá gerar
+um executável designado por <b>factorial</b>.
+
+</p><p>
+A execução do referido programa deverá devolver 0 (zero)
+se o programa não tiver erros lexicais, sintáticos ou semânticos.
+O programa deverá devolver
+1 (um) e produzir mensagens de erro esclarecedoras no terminal (usando o
+<tt>stderr</tt>) caso o programa tenha erros lexicais, sintácticos ou semânticos.
+
+</p><p>
+Para a avaliação intermédia considera-se a útima versão
+anterior às 12 horas do dia 16 de Abril de 2013 (hora do fénix).
+
+</p><p>
+
+</p><h3><a name="SECTION00035000000000000000">
+3.5 - Construção da árvore sintáctica</a>
+</h3>
+
+<p>
+A construção da árvore sintáctica deve incluir toda a informação
+necessária à geração de código e ser efectuada de tal forma que
+possa ser processada pela ferramente <tt>pburg</tt>.
+Para tal deve ter em consideração que a ferramenta apenas considera
+os dois primeiros ramos de cada nó da árvore.
+Além disso, os nós devem representar instruções tão próximas quanto
+possível das primitivas básicas de um processador genérico.
+</p><p>
+A geração da árvore sintáctica deverá ser incluída nas acções do
+ficheiro de análise sintáctica <b>factorial.y</b>.
+Este ficheiro pode ser livremente alterado da entrega intermédia para
+a entrega final, incluindo as próprias regras gramaticais, tal como
+o ficheiro <b>factorial.l</b>
+Nesta fase, e apenas para efeitos de <i>debug</i> interno, sugere-se que o compilador imprima árvore de análise 
+sintáctica do programa  <b>factorial</b> lido,
+se o programa estiver lexical, sintáctica e semanticamente correcto.
+
+</p><p>
+
+</p><h3><a name="SECTION00036000000000000000">
+3.6 - Geração de código final optimizado</a>
+</h3>
+
+<p>
+A geração de código final deverá ser realizada com o
+auxílio da ferramenta <tt>pburg</tt>.
+Para gerar código final aceitavelmente optimizado deve descrever
+gramaticalmente as capacidades do processador alvo em função da
+árvore sintáctica gerada num ficheiro de reescrita de árvores.
+Este ficheiro define a forma de acesso à árvore sintáctica,
+os símbolos terminais da árvore sintáctica e a gramática das instruções
+e respectivos custos.
+A selecção das instruções deve aproveitar da melhor forma possível as
+capacidades do processador. Notar que como a geração de código utiliza
+as macros <b>postfix</b>, a selecção de instruções deve aproveitar o
+melhor possível as capacidades das instruções disponíveis. Para o cálculo
+dos custos deve-se considerar que cada instrução <b>postfix</b> tem um custo
+unitário (1), excluindo as directivas <i>assembly</i> que têm um custo nulo (0).
+</p><p>
+O ficheiro <i>assembly</i> gerado deve ter um formato que seja processado
+pelo <i>assembler</i> <b>nasm</b>, supondo o sistema operativo <b>Linux</b>
+e o formato de ficheiro <b>elf32</b>.
+Para tal, o comando <b>nasm -felf file.asm</b> permite gerar o ficheiro
+<tt>file.o</tt> a partir do ficheiro <tt>file.asm</tt>, assumindo que
+não são encontrados erros no seu processamento.
+
+</p><p>
+Deverá ser produzido um ficheiro designado <b>factorial.brg</b>, 
+contendo a geração do código final tal como será
+utilizada no compilador final. 
+
+</p><p>
+
+</p><h3><a name="SECTION00037000000000000000">
+3.7 - Biblioteca de suporte à execução</a>
+</h3>
+
+<p>
+Para poder executar os programas gerados, a biblioteca de suporte à execução
+deve fornecer todas as rotinas necessárias à execução das operações suportadas
+pela linguagem. A biblioteca, designada por <tt>libfactorial.a</tt>, deve também
+incluir o código necessário ao arranque do programa e invocação da rotina
+inicial <tt>entry</tt>.
+</p><p>
+
+Para tal, o comando <b>ld -o programa file.o libfactorial.a</b> permite gerar
+o ficheiro <tt>programa</tt> a partir do ficheiro <tt>file.o</tt>, assumindo que
+não são encontrados erros no seu processamento.
+</p><p>
+
+</p><h1><a name="SECTION00040000000000000000">
+4 - Avaliação</a>
+</h1>
+
+<p>
+A avaliação do projecto é constituída por:
+
+</p><ol>
+<li>resultados produzidos
+pelos programas de exemplo de aplicação e pelo compilador
+da linguagem <b>factorial</b> face a um conjunto de padrões de teste.
+</li>
+<li>análise do código entregue, do ponto de vista da robustez,
+clareza, simplicidade e extensibilidade.
+</li>
+<li>Os alunos que realizem o projecto indidualmente não realizam a geração de código:
+<ol>
+<li>de instruções de ciclo <tt>for</tt>.
+</li>
+<li>da instrução de de reserva de memória <tt>#</tt>.
+</li>
+<li>de expressões de incremento/decremento <tt>++/--</tt>.
+</li>
+<li>de comparações de variáveis do tipo <tt>string</tt>.
+</li>
+</ol>
+</li>
+<li>teste ptático, tendo o acesso condicionado a quem teve pelo
+menos 8 valores na entrega final, versando alterações ao
+projecto entregue.
+</li>
+</ol>
+NOTA: qualquer alteração à especificação é penalizada, mesmo que possa
+ser entendida como um melhoramento. Pretende-se realizar um compilador para
+a linguagem  <b>factorial</b> e não que cada grupo invente uma nova linguagem,
+mesmo que baseada em  <b>factorial</b>.
+
+<p>
+Notar que o facto de os testes terem sido superados não
+reflecte a qualidade do código, quer do ponto de vista de engenharia de
+software, quer do ponto de vista da correcta aplicação dos princípios
+leccionados nesta disciplina.
+A funcionalidade do compilador final é de extrema importância, 
+pelo que é preferível um programa que realize, correctamente,
+apenas parte da funcionalidade face a um quase completo mas que nem sequer
+compila ou que não gera nenhum programa correcto.
+
+</p><p>
+Para a avaliação final considera-se a útima versão
+anterior às 12 horas do dia 20 de Maio de 2013 (hora do fénix).
+
+</p><p>
+
+</p><h3><a name="SECTION00041000000000000000">
+4.1 - Teste prático</a>
+</h3>
+
+<p>
+O teste prático tem por objectivo garantir o domínio do projecto entregue
+por parte do aluno. O teste prático é individual, quer o projecto tenha sido
+desenvolvido individualmente ou em grupo.
+O teste prático consiste na realização de pequenas alterações ao projecto
+submetido, bem como à verificação da sua correcta aolicação a exemplos de teste.
+</p><p>
+
+O teste prático tem a duração máxima de 1 (uma) hora.
+O teste prático realiza-se no dia 22 de Maio de 2013 entre as 9h e as 20h (e caso seja necessário, nos dias seguintes).
+
+<br></p><hr>
+<address>
+Pedro Reis Santos
+2013-02-18
+</address>
+
+
+</body><style type="text/css"></style></html>
