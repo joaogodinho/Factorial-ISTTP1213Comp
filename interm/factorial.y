@@ -179,19 +179,3 @@ expression		: left_value
 			;
 
 %%
-int main() {
-	yydebug = 1;
-	yyparse();
-  	return 0;
-}
-
-void yyerror(char *s) {
-	printf("%s\n", s);
-}
-
-char **yynames =
-#if YYDEBUG > 0
-         (char**)yyname;
-#else
-         0;
-#endif

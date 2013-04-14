@@ -7,8 +7,9 @@ YACC=byacc -dv
 
 $(LANG): $(LANG).y $(LEXDIR)
 	$(YACC) -dv $(LANG).y
-	$(LEX) -l $(LEXDIR)
-	gcc -o $(LANG) -DYYDEBUG lex.yy.c y.tab.c -lm
+	$(LEX) $(LEXDIR)
+	make -C ../lib
+	gcc -o $(LANG) -DYYDEBUG -I../lib lex.yy.c y.tab.c ../lib/libutil.a -lm
 
 install:: $(LANG)
 	echo "not a delivrable"
