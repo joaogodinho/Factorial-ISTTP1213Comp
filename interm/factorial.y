@@ -25,8 +25,15 @@ As expressões regulares são identificadas pelo número da linha em que se enco
 
 #define TRUE 1
 #define FALSE 0
+#define TINT 0
+#define TSTR 1
+#define TNUMB 2
+#define TVOID 3
 
 #define concSize6Bit(X) (X & 63)
+#define getType(X) (X & 3)
+#define getPtr(X) (X & 4)
+
 #define setInt(X) (X | 0)
 #define setStr(X) (X | 1)
 #define setNumb(X) (X | 2)
@@ -42,6 +49,9 @@ As expressões regulares são identificadas pelo número da linha em que se enco
 #define remFunc(X) (X ^ 32)
 
 int buildIdent(int keywords, int type, int isPtr, char *ident);
+int convertTypes(int type);
+int cmpTypes(int a, int b);
+char aux_ident[64];
 %}
 
 %union {
@@ -67,10 +77,11 @@ int buildIdent(int keywords, int type, int isPtr, char *ident);
 %left '*' '/' '%' 
 %nonassoc UMINUS
 
-%type <i> declaration_specifiers type_specifier declarator keywords_specifiers
+%type <i> type_specifier keywords_specifiers init_declarator initializer func_parameters
+%type <s> declarator declaration_specifiers 
 
 %%
-file			: entry_point
+file			: entry_point						{ IDprint(0, -1); }
 			| /* empty file */
 			;
 
@@ -78,7 +89,7 @@ entry_point		: declaration
 			| entry_point declaration
 			;
 
-declaration		: declaration_specifiers ';'
+declaration		: declaration_specifiers ';'				{ if (getType(IDfind($1/*ident*/, (long*)IDtest)) == TVOID) { yyerror("Cannot define void variables");  } }
 			| declaration_specifiers init_declarator ';'
 			;
 
@@ -97,47 +108,53 @@ type_specifier		: VINT							{ $$ = VINT; }
 			| VOID							{ $$ = VOID; }
 			;
 	
-init_declarator		: ASG initializer					/* must not be void */
-			| ASG IDENT						/* types must match */
-			| '(' func_parameters ')' body	
-			| '(' func_parameters ')'
-			;
-										/* force size to 6bit, $-1 may be random/unknown value, due to parameter rule */
-declarator		: '*' IDENT						{ $$ = buildIdent(concSize6Bit($<i>-1)/*keywords*/, $<i>0/*type*/, TRUE /*pointer*/, $2 /*ident*/); }
-			| IDENT							{ $$ = buildIdent(concSize6Bit($<i>-1)/*keywords*/, $<i>0/*type*/, FALSE/*pointer*/, $1 /*ident*/); }
+init_declarator		: ASG initializer					{ int type = IDfind($<s>0/*ident*/, (long*)IDtest);
+										  if (cmpTypes(type, convertTypes($2)/*type*/)) { yyerror("Mismatched types"); } 
+										  if (getType(type) == TVOID) { yyerror("Cannot initialize void variables");  } }
+			| ASG IDENT						{ if (cmpTypes(IDfind($<s>0/*ident*/, (long*)IDtest), IDfind($2, (long*)IDtest)/*type*/)) { yyerror("Mismatched types"); } }
+			| '(' { IDpush(); } func_parameters { IDreplace(IDfind($<s>0/*ident*/, (long*)IDtest), $<s>0/*ident*/, (long)$3/*#param*/); }
+							 ')' body		{ IDpop(); }
 			;
 
-initializer		: INTEGER
-			| STRING
-			| NUMBER
+declarator		: '*' IDENT						{ $$ = $2/*ident*/; buildIdent($<i>-1/*keywords*/, $<i>0/*type*/, TRUE /*pointer*/, $2/*ident*/); }
+			| IDENT							{ $$ = $1/*ident*/; buildIdent($<i>-1/*keywords*/, $<i>0/*type*/, FALSE/*pointer*/, $1/*ident*/); }
 			;
 
-body			: '{' body_contents '}'	
+initializer		: INTEGER						{ $$ = INTEGER; }
+			| STRING						{ $$ = STRING; }
+			| NUMBER						{ $$ = NUMBER; }
 			;
 
-body_contents		: 
+body			: /* no body */
+			| '{' body_contents '}'
+			;
+
+body_contents		: /* no contents */
 			| body_contents parameters
 			| body_contents statement
 			;
 
-func_parameters		: parameter
-			| parameter ',' func_parameters
-			|
+func_parameters		: parameter						{ $$ = 1; }
+			| parameter ',' func_parameters				{ $$ = $3 + 1; }
+			| /* no parameters */					{ $$ = 0; }
 			;
 
 parameters		: parameter ';'
 			| parameter ',' parameters
 			;
 
-parameter		: type_specifier declarator
+parameter		: type_specifier declarator				/* case where $<i>-1 in line #115 is unknown */
 			;
 
 statement		: selection_statement
 			| iteration_statement
 			| expression ';'
-			| body
+			| statement_body
 			| jump_statement
 			| left_value '#' expression ';'
+			;
+
+statement_body		: '{' { IDpush(); } body_contents '}'			{ IDpop(); }
 			;
 
 left_value		: IDENT
@@ -205,9 +222,9 @@ expression		: left_value
 
 int buildIdent(int keywords, int type, int isPtr, char *ident) {
 	int var = 0;
-	//printf("keywords: %i\ntype: %i\nident %s\n", keywords, type, ident);
-
-	switch (keywords) {
+	
+	/* concatenate to 6Bit, keywords may be unknown/random due to some rules */
+	switch (concSize6Bit(keywords)) {
 		case PUBLIC: var = setPub(var); break;
 		case CONST: var = setConst(var); break;
 		case PUBLIC+CONST: var = setPub(setConst(var)); break;
@@ -223,6 +240,24 @@ int buildIdent(int keywords, int type, int isPtr, char *ident) {
 	if (isPtr) { var = setPtr(var); }
 
 	IDnew(var, ident, 0);
-	//printf("var: %i\n", var);
 	return var;
+}
+
+int convertTypes(int type) {
+	switch (type) {
+		case INTEGER: 
+		case VINT:
+			return TINT;
+		case STRING: 
+		case VSTR:
+			return TSTR;
+		case NUMBER:
+		case VNUMB:
+			return TNUMB;
+	}
+}
+
+int cmpTypes(int a, int b) {
+	if (getType(a) == getType(b)) { return 0; }
+	return 1;
 }
