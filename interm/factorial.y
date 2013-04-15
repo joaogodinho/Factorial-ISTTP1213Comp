@@ -21,6 +21,7 @@ As expressões regulares são identificadas pelo número da linha em que se enco
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h> 
+#include <stdarg.h>
 #include "tabid.h"
 
 #define TRUE 1
@@ -29,10 +30,21 @@ As expressões regulares são identificadas pelo número da linha em que se enco
 #define TSTR 1
 #define TNUMB 2
 #define TVOID 3
+#define TFUNC 32
+
+#define ERR_MISTYPES "Mismatched types"
+#define ERR_DEFVOID "Cannot define void variables"
+#define ERR_INITVOID "Cannot initialize void variables"
+#define ERR_VARNOTDEF "Variable not defined"
+#define ERR_NOTFUNC "Identifier is not a function"
+#define ERR_WRONGNARGS "Wrong number of arguments in function call"
+#define ERR_INDEXTYPE "Index type is not integer"
+#define ERR_OPTYPE "Operation not allowed on given type"
 
 #define concSize6Bit(X) (X & 63)
 #define getType(X) (X & 3)
 #define getPtr(X) (X & 4)
+#define getFunc(X) (X & 32)
 
 #define setInt(X) (X | 0)
 #define setStr(X) (X | 1)
@@ -43,15 +55,11 @@ As expressões regulares são identificadas pelo número da linha em que se enco
 #define setConst(X) (X | 16)
 #define setFunc(X) (X | 32)
 
-#define remPtr(X) (X ^ 4)
-#define remPub(X) (X ^ 8)
-#define remConst(X) (X ^ 16)
-#define remFunc(X) (X ^ 32)
-
 int buildIdent(int keywords, int type, int isPtr, char *ident);
 int convertTypes(int type);
 int cmpTypes(int a, int b);
-char aux_ident[64];
+void mkcall(char *func, long eargs);
+int cmpTypesList(int src, int size,  ...);
 %}
 
 %union {
@@ -77,11 +85,11 @@ char aux_ident[64];
 %left '*' '/' '%' 
 %nonassoc UMINUS
 
-%type <i> type_specifier keywords_specifiers init_declarator initializer func_parameters
+%type <i> type_specifier keywords_specifiers init_declarator initializer func_parameters func_parameters_aux func_invoc_param func_invoc_param_aux left_value expression
 %type <s> declarator declaration_specifiers 
 
 %%
-file			: entry_point						{ IDprint(0, -1); }
+file			: entry_point					{ IDprint(0, -1); }
 			| /* empty file */
 			;
 
@@ -89,40 +97,41 @@ entry_point		: declaration
 			| entry_point declaration
 			;
 
-declaration		: declaration_specifiers ';'				{ if (getType(IDfind($1/*ident*/, (long*)IDtest)) == TVOID) { yyerror("Cannot define void variables");  } }
+declaration		: declaration_specifiers ';'			{ if (getType(IDfind($1/*ident*/, (long*)IDtest)) == TVOID) { yyerror(ERR_DEFVOID);  } }
 			| declaration_specifiers init_declarator ';'
 			;
 
-declaration_specifiers	: keywords_specifiers type_specifier declarator		{ $$ = $3; } 
+declaration_specifiers	: keywords_specifiers type_specifier declarator	{ $$ = $3; } 
 			;
 
-keywords_specifiers	: PUBLIC						{ $$ = PUBLIC; }
-			| PUBLIC CONST						{ $$ = PUBLIC + CONST; }
-			| CONST							{ $$ = CONST; }
-			| /* no specifiers */					{ $$ = NONE; }
+keywords_specifiers	: PUBLIC					{ $$ = PUBLIC; }
+			| PUBLIC CONST					{ $$ = PUBLIC + CONST; }
+			| CONST						{ $$ = CONST; }
+			| /* no specifiers */				{ $$ = NONE; }
 			;
 
-type_specifier		: VINT							{ $$ = VINT; }
-			| VSTR							{ $$ = VSTR; }
-			| VNUMB							{ $$ = VNUMB; }
-			| VOID							{ $$ = VOID; }
+type_specifier		: VINT						{ $$ = VINT; }
+			| VSTR						{ $$ = VSTR; }
+			| VNUMB						{ $$ = VNUMB; }
+			| VOID						{ $$ = VOID; }
 			;
 	
-init_declarator		: ASG initializer					{ int type = IDfind($<s>0/*ident*/, (long*)IDtest);
-										  if (cmpTypes(type, convertTypes($2)/*type*/)) { yyerror("Mismatched types"); } 
-										  if (getType(type) == TVOID) { yyerror("Cannot initialize void variables");  } }
-			| ASG IDENT						{ if (cmpTypes(IDfind($<s>0/*ident*/, (long*)IDtest), IDfind($2, (long*)IDtest)/*type*/)) { yyerror("Mismatched types"); } }
-			| '(' { IDpush(); } func_parameters { IDreplace(IDfind($<s>0/*ident*/, (long*)IDtest), $<s>0/*ident*/, (long)$3/*#param*/); }
-							 ')' body		{ IDpop(); }
+init_declarator		: ASG initializer				{ int type = IDfind($<s>0/*ident*/, (long*)IDtest);
+									  if (cmpTypes(type, convertTypes($2)/*type*/)) { yyerror(ERR_MISTYPES); } 
+									  if (getType(type) == TVOID) { yyerror(ERR_INITVOID);  } }
+			| ASG IDENT					{ if (cmpTypes(IDfind($<s>0/*ident*/,(long*)IDtest),IDfind($2, (long*)IDtest)/*type*/)) { yyerror(ERR_MISTYPES); } }
+			| '(' 						{ IDreplace(setFunc(IDfind($<s>0/*ident*/, (long*)IDtest)), $<s>0/*ident*/, 0); IDpush() ;} 
+			  func_parameters 				{ IDreplace(IDfind($<s>0/*ident*/, (long*)IDtest), $<s>0/*ident*/, (long)$3/*#param*/); }
+			  ')' body					{ IDpop(); }
 			;
 
-declarator		: '*' IDENT						{ $$ = $2/*ident*/; buildIdent($<i>-1/*keywords*/, $<i>0/*type*/, TRUE /*pointer*/, $2/*ident*/); }
-			| IDENT							{ $$ = $1/*ident*/; buildIdent($<i>-1/*keywords*/, $<i>0/*type*/, FALSE/*pointer*/, $1/*ident*/); }
+declarator		: '*' IDENT					{ $$ = $2/*ident*/; buildIdent($<i>-1/*keywords*/, $<i>0/*type*/, TRUE /*pointer*/, $2/*ident*/); }
+			| IDENT						{ $$ = $1/*ident*/; buildIdent($<i>-1/*keywords*/, $<i>0/*type*/, FALSE/*pointer*/, $1/*ident*/); }
 			;
 
-initializer		: INTEGER						{ $$ = INTEGER; }
-			| STRING						{ $$ = STRING; }
-			| NUMBER						{ $$ = NUMBER; }
+initializer		: INTEGER					{ $$ = INTEGER; }
+			| STRING					{ $$ = STRING; }
+			| NUMBER					{ $$ = NUMBER; }
 			;
 
 body			: /* no body */
@@ -134,16 +143,19 @@ body_contents		: /* no contents */
 			| body_contents statement
 			;
 
-func_parameters		: parameter						{ $$ = 1; }
-			| parameter ',' func_parameters				{ $$ = $3 + 1; }
-			| /* no parameters */					{ $$ = 0; }
+func_parameters		: func_parameters_aux				{ $$ = $1; }
+			| /* no parameters */				{ $$ = 0; }
+			;
+
+func_parameters_aux	: parameter					{ $$ = 1; }
+			| parameter ',' func_parameters_aux		{ $$ = $3 + 1; }
 			;
 
 parameters		: parameter ';'
 			| parameter ',' parameters
 			;
 
-parameter		: type_specifier declarator				/* case where $<i>-1 in line #115 is unknown */
+parameter		: type_specifier declarator			/* case where $<i>-1 in line #115 is unknown */
 			;
 
 statement		: selection_statement
@@ -152,13 +164,16 @@ statement		: selection_statement
 			| statement_body
 			| jump_statement
 			| left_value '#' expression ';'
+			| ';'
 			;
 
-statement_body		: '{' { IDpush(); } body_contents '}'			{ IDpop(); }
+statement_body		: '{' 						{ IDpush(); } 
+			  body_contents '}'				{ IDpop(); }
 			;
 
-left_value		: IDENT
-			| IDENT '[' expression ']'
+left_value		: IDENT						{ if (($$ = IDfind($1/*ident*/, (long*)IDtest)) == -1) { yyerror(ERR_VARNOTDEF); } }
+			| IDENT '[' expression ']'			{ if (($$ = IDfind($1/*ident*/, (long*)IDtest)) == -1) { yyerror(ERR_VARNOTDEF); }
+									  if (cmpTypes($3/*type*/, TINT)) { yyerror(ERR_INDEXTYPE); } }
 			;
 
 selection_statement	: IF expression THEN statement %prec IFX
@@ -184,21 +199,24 @@ for_step		: STEP expression
 			|
 			;
 
-func_invoc_param	: expression
-		 	| expression ',' func_invoc_param
+func_invoc_param	: func_invoc_param_aux				{ $$ = $1; }
+			| /* no args */					{ $$ = 0; }
 			;
 
-expression		: left_value 
-	    		| left_value ASG expression
-			| IDENT '(' ')'
-			| IDENT '(' func_invoc_param ')'
-			| PP left_value 
-			| MM left_value
-			| left_value PP
-			| left_value MM
-			| initializer
-			| '-' expression %prec UMINUS
-			| expression '!'
+func_invoc_param_aux	: expression					{ $$ = 1; }
+			| expression ',' func_invoc_param_aux		{ $$ = $3 + 1; }
+			;	
+
+expression		: left_value 					{ $$ = $1/*type*/; }
+	    		| left_value ASG expression			{ if (cmpTypes($1/*type*/, $3/*type*/)) { yyerror(ERR_MISTYPES); } $$ = $1/*type*/; }
+			| IDENT '(' func_invoc_param ')'		{ mkcall($1/*ident*/, $3/*#nargs*/); $$ = getType(IDfind($1/*ident*/, (long*)IDtest)); }
+			| PP left_value 				{ if (cmpTypes($2/*type*/, TINT)) { yyerror(ERR_OPTYPE); } $$ = TINT; } 
+			| MM left_value					{ if (cmpTypes($2/*type*/, TINT)) { yyerror(ERR_OPTYPE); } $$ = TINT; }
+			| left_value PP					{ if (cmpTypes($1/*type*/, TINT)) { yyerror(ERR_OPTYPE); } $$ = TINT; }
+			| left_value MM					{ if (cmpTypes($1/*type*/, TINT)) { yyerror(ERR_OPTYPE); } $$ = TINT; }
+			| initializer					{ $$ = convertTypes($1/*rawType*/); }
+			| '-' expression %prec UMINUS			{ if (cmpTypesList($2/*type*/, 2/*listSize*/, TINT, TNUMB)) { yyerror(ERR_OPTYPE); } $$ = TINT; }
+			| expression '!'				{ if (cmpTypes($1/*type*/, TINT)) { yyerror(ERR_OPTYPE); } $$ = TINT; }
 			| '~' expression
 			| '*' expression
 			| '&' expression
@@ -238,7 +256,7 @@ int buildIdent(int keywords, int type, int isPtr, char *ident) {
 	}
 
 	if (isPtr) { var = setPtr(var); }
-
+	
 	IDnew(var, ident, 0);
 	return var;
 }
@@ -260,4 +278,22 @@ int convertTypes(int type) {
 int cmpTypes(int a, int b) {
 	if (getType(a) == getType(b)) { return 0; }
 	return 1;
+}
+
+int cmpTypesList(int src, int size, ...) {
+	va_list argp;
+	va_start(argp, size);
+	while (size-- > 0 ) {
+		if (!cmpTypes(src, va_arg(argp, int))) { va_end(argp); return 0; }
+	}
+	va_end(argp);
+	return 1;
+}
+
+void mkcall(char *func, long eargs) {
+	long fargs; 
+	int type = IDfind(func, &fargs); /* yyerror if ID does not exist */
+	
+	if (getFunc(type) != TFUNC) { yyerror(ERR_NOTFUNC); }
+	if (fargs != eargs) { yyerror(ERR_WRONGNARGS); }
 }
