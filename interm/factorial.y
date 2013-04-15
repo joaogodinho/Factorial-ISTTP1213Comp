@@ -21,7 +21,27 @@ As expressões regulares são identificadas pelo número da linha em que se enco
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h> 
-#define YYDEBUG 1
+#include "tabid.h"
+
+#define TRUE 1
+#define FALSE 0
+
+#define concSize6Bit(X) (X & 63)
+#define setInt(X) (X | 0)
+#define setStr(X) (X | 1)
+#define setNumb(X) (X | 2)
+#define setVoid(X) (X | 3)
+#define setPtr(X) (X | 4)
+#define setPub(X) (X | 8)
+#define setConst(X) (X | 16)
+#define setFunc(X) (X | 32)
+
+#define remPtr(X) (X ^ 4)
+#define remPub(X) (X ^ 8)
+#define remConst(X) (X ^ 16)
+#define remFunc(X) (X ^ 32)
+
+int buildIdent(int keywords, int type, int isPtr, char *ident);
 %}
 
 %union {
@@ -31,10 +51,11 @@ As expressões regulares são identificadas pelo número da linha em que se enco
 };
 
 %token <i> INTEGER
-%token <s> VARIABLE STRING
+%token <s> STRING IDENT
 %token <d> NUMBER
 %token VOID VINT VSTR PUBLIC VNUMB CONST IF THEN ELSE WHILE
 %token DO FOR IN STEP UPTO DOWNTO BREAK CONTINUE IDENT STRING
+%token NONE POINTER
 
 %nonassoc IFX '(' ')' '[' ']' PP MM '~' '!'
 %nonassoc ELSE
@@ -46,9 +67,11 @@ As expressões regulares são identificadas pelo número da linha em que se enco
 %left '*' '/' '%' 
 %nonassoc UMINUS
 
+%type <i> declaration_specifiers type_specifier declarator keywords_specifiers
+
 %%
 file			: entry_point
-			|
+			| /* empty file */
 			;
 
 entry_point		: declaration
@@ -59,29 +82,29 @@ declaration		: declaration_specifiers ';'
 			| declaration_specifiers init_declarator ';'
 			;
 
-declaration_specifiers	: keywords_specifiers type_specifier declarator
+declaration_specifiers	: keywords_specifiers type_specifier declarator		{ $$ = $3; } 
 			;
 
-keywords_specifiers	: PUBLIC
-			| PUBLIC CONST
-			| CONST
-			|
+keywords_specifiers	: PUBLIC						{ $$ = PUBLIC; }
+			| PUBLIC CONST						{ $$ = PUBLIC + CONST; }
+			| CONST							{ $$ = CONST; }
+			| /* no specifiers */					{ $$ = NONE; }
 			;
 
-type_specifier		: VINT
-			| VSTR
-			| VNUMB
-			| VOID
+type_specifier		: VINT							{ $$ = VINT; }
+			| VSTR							{ $$ = VSTR; }
+			| VNUMB							{ $$ = VNUMB; }
+			| VOID							{ $$ = VOID; }
 			;
 	
-init_declarator		: ASG initializer
-			| ASG IDENT
-			| '(' func_parameters ')' body
+init_declarator		: ASG initializer					/* must not be void */
+			| ASG IDENT						/* types must match */
+			| '(' func_parameters ')' body	
 			| '(' func_parameters ')'
 			;
-
-declarator		: '*' IDENT
-			| IDENT
+										/* force size to 6bit, $-1 may be random/unknown value, due to parameter rule */
+declarator		: '*' IDENT						{ $$ = buildIdent(concSize6Bit($<i>-1)/*keywords*/, $<i>0/*type*/, TRUE /*pointer*/, $2 /*ident*/); }
+			| IDENT							{ $$ = buildIdent(concSize6Bit($<i>-1)/*keywords*/, $<i>0/*type*/, FALSE/*pointer*/, $1 /*ident*/); }
 			;
 
 initializer		: INTEGER
@@ -89,7 +112,7 @@ initializer		: INTEGER
 			| NUMBER
 			;
 
-body			: '{' body_contents '}'
+body			: '{' body_contents '}'	
 			;
 
 body_contents		: 
@@ -179,3 +202,27 @@ expression		: left_value
 			;
 
 %%
+
+int buildIdent(int keywords, int type, int isPtr, char *ident) {
+	int var = 0;
+	//printf("keywords: %i\ntype: %i\nident %s\n", keywords, type, ident);
+
+	switch (keywords) {
+		case PUBLIC: var = setPub(var); break;
+		case CONST: var = setConst(var); break;
+		case PUBLIC+CONST: var = setPub(setConst(var)); break;
+	}
+
+	switch (type) {
+		case VINT: var = setInt(var); break;
+		case VSTR: var = setStr(var); break;
+		case VNUMB: var = setNumb(var); break;
+		case VOID: var = setVoid(var); break;
+	}
+
+	if (isPtr) { var = setPtr(var); }
+
+	IDnew(var, ident, 0);
+	//printf("var: %i\n", var);
+	return var;
+}
