@@ -4,6 +4,7 @@
 =>
 
 public void prints(string s)
+public void printi(integer i)
 public integer atoi(string s)
 public integer rand()
 

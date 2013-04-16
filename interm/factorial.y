@@ -30,6 +30,7 @@ As expressões regulares são identificadas pelo número da linha em que se enco
 #define TSTR 1
 #define TNUMB 2
 #define TVOID 3
+#define TPTR 4
 #define TFUNC 32
 
 #define ERR_MISTYPES "Mismatched types"
@@ -40,6 +41,8 @@ As expressões regulares são identificadas pelo número da linha em que se enco
 #define ERR_WRONGNARGS "Wrong number of arguments in function call"
 #define ERR_INDEXTYPE "Index type is not integer"
 #define ERR_OPTYPE "Operation not allowed on given type"
+#define ERR_TYPEFUNC "Identifier cannot be of type function"
+#define ERR_WRONGTARGS "Argument type doesn't match"
 
 #define concSize6Bit(X) (X & 63)
 #define getType(X) (X & 3)
@@ -57,9 +60,21 @@ As expressões regulares são identificadas pelo número da linha em que se enco
 
 int buildIdent(int keywords, int type, int isPtr, char *ident);
 int convertTypes(int type);
-int cmpTypes(int a, int b);
 void mkcall(char *func, long eargs);
+int cmpTypes(int a, int b);
 int cmpTypesList(int src, int size,  ...);
+
+int nFuncs = 0;
+int nInvocParams = 0;
+typedef struct {
+	char func_ident[64];
+	int nArgs;
+	int type[64];
+} FuncParams;
+
+FuncParams funcParams[64];
+FuncParams funcInvocParams[64];
+
 %}
 
 %union {
@@ -89,7 +104,7 @@ int cmpTypesList(int src, int size,  ...);
 %type <s> declarator declaration_specifiers 
 
 %%
-file			: entry_point					{ IDprint(0, -1); }
+file			: entry_point					
 			| /* empty file */
 			;
 
@@ -120,7 +135,9 @@ init_declarator		: ASG initializer				{ int type = IDfind($<s>0/*ident*/, (long*
 									  if (cmpTypes(type, convertTypes($2)/*type*/)) { yyerror(ERR_MISTYPES); } 
 									  if (getType(type) == TVOID) { yyerror(ERR_INITVOID);  } }
 			| ASG IDENT					{ if (cmpTypes(IDfind($<s>0/*ident*/,(long*)IDtest),IDfind($2, (long*)IDtest)/*type*/)) { yyerror(ERR_MISTYPES); } }
-			| '(' 						{ IDreplace(setFunc(IDfind($<s>0/*ident*/, (long*)IDtest)), $<s>0/*ident*/, 0); IDpush() ;} 
+			| '(' 						{ IDreplace(setFunc(IDfind($<s>0/*ident*/, (long*)IDtest)), $<s>0/*ident*/, 0); 
+									  strcpy(funcParams[nFuncs].func_ident, $<s>0/*ident*/);
+									  IDpush(); } 
 			  func_parameters 				{ IDreplace(IDfind($<s>0/*ident*/, (long*)IDtest), $<s>0/*ident*/, (long)$3/*#param*/); }
 			  ')' body					{ IDpop(); }
 			;
@@ -135,7 +152,7 @@ initializer		: INTEGER					{ $$ = INTEGER; }
 			;
 
 body			: /* no body */
-			| '{' body_contents '}'
+			| '{' body_contents '}'	
 			;
 
 body_contents		: /* no contents */
@@ -143,7 +160,7 @@ body_contents		: /* no contents */
 			| body_contents statement
 			;
 
-func_parameters		: func_parameters_aux				{ $$ = $1; }
+func_parameters		: func_parameters_aux				{ funcParams[nFuncs++].nArgs = $$ = $1; }
 			| /* no parameters */				{ $$ = 0; }
 			;
 
@@ -155,7 +172,7 @@ parameters		: parameter ';'
 			| parameter ',' parameters
 			;
 
-parameter		: type_specifier declarator			/* case where $<i>-1 in line #115 is unknown */
+parameter		: type_specifier declarator			{ funcParams[nFuncs].type[funcParams[nFuncs].nArgs++] = getType(IDfind($2/*ident*/, (long*)IDtest)); }
 			;
 
 statement		: selection_statement
@@ -172,7 +189,10 @@ statement_body		: '{' 						{ IDpush(); }
 			;
 
 left_value		: IDENT						{ if (($$ = IDfind($1/*ident*/, (long*)IDtest)) == -1) { yyerror(ERR_VARNOTDEF); } }
-			| IDENT '[' expression ']'			{ if (($$ = IDfind($1/*ident*/, (long*)IDtest)) == -1) { yyerror(ERR_VARNOTDEF); }
+			| IDENT '[' expression ']'			{ int type = IDfind($1/*ident*/, (long*)IDtest);
+									  if (type == -1) { yyerror(ERR_VARNOTDEF); }
+									  $$ = (!cmpTypes(type, TSTR) && getPtr(type) != TPTR) ? TINT : getType(type);
+									  if (getFunc(type) ==  TFUNC) { yyerror(ERR_TYPEFUNC); }
 									  if (cmpTypes($3/*type*/, TINT)) { yyerror(ERR_INDEXTYPE); } }
 			;
 
@@ -203,13 +223,15 @@ func_invoc_param	: func_invoc_param_aux				{ $$ = $1; }
 			| /* no args */					{ $$ = 0; }
 			;
 
-func_invoc_param_aux	: expression					{ $$ = 1; }
-			| expression ',' func_invoc_param_aux		{ $$ = $3 + 1; }
+func_invoc_param_aux	: expression					{ $$ = 1; funcInvocParams[nInvocParams].type[funcInvocParams[nInvocParams].nArgs++] = getType($1/*type*/); }
+			| expression ',' func_invoc_param_aux		{ $$ = $3 + 1; funcInvocParams[nInvocParams].type[funcInvocParams[nInvocParams].nArgs++] = getType($1/*type*/); }
 			;	
 
 expression		: left_value 					{ $$ = $1/*type*/; }
-	    		| left_value ASG expression			{ if (cmpTypes($1/*type*/, $3/*type*/)) { yyerror(ERR_MISTYPES); } $$ = $1/*type*/; }
-			| IDENT '(' func_invoc_param ')'		{ mkcall($1/*ident*/, $3/*#nargs*/); $$ = getType(IDfind($1/*ident*/, (long*)IDtest)); }
+	    		| left_value ASG expression			{ if (cmpTypes($1/*type*/, $3/*type*/)) { yyerror(ERR_MISTYPES); } $$ = getType($1/*type*/); }
+			| IDENT 					{ strcpy(funcInvocParams[nInvocParams].func_ident, $1/*ident*/);} 
+			  '(' func_invoc_param ')'			{ funcInvocParams[nInvocParams++].nArgs = $4/*#args*/;
+									  mkcall($1/*ident*/, $4/*#nargs*/); $$ = getType(IDfind($1/*ident*/, (long*)IDtest)); }
 			| PP left_value 				{ if (cmpTypes($2/*type*/, TINT)) { yyerror(ERR_OPTYPE); } $$ = TINT; } 
 			| MM left_value					{ if (cmpTypes($2/*type*/, TINT)) { yyerror(ERR_OPTYPE); } $$ = TINT; }
 			| left_value PP					{ if (cmpTypes($1/*type*/, TINT)) { yyerror(ERR_OPTYPE); } $$ = TINT; }
@@ -217,23 +239,49 @@ expression		: left_value 					{ $$ = $1/*type*/; }
 			| initializer					{ $$ = convertTypes($1/*rawType*/); }
 			| '-' expression %prec UMINUS			{ if (cmpTypesList($2/*type*/, 2/*listSize*/, TINT, TNUMB)) { yyerror(ERR_OPTYPE); } $$ = TINT; }
 			| expression '!'				{ if (cmpTypes($1/*type*/, TINT)) { yyerror(ERR_OPTYPE); } $$ = TINT; }
-			| '~' expression
-			| '*' expression
-			| '&' expression
-			| expression '+' expression
-			| expression '-' expression
-			| expression '*' expression
-			| expression '/' expression
-			| expression '%' expression
-			| expression '<' expression
-			| expression '>' expression
-			| expression '=' expression
-			| expression '|' expression
-			| expression '&' expression
-			| expression GE expression
-			| expression LE expression
-			| expression NE expression
-			| '(' expression ')'
+			| '~' expression				{ if (cmpTypes($2/*type*/, TINT)) { yyerror(ERR_OPTYPE); } $$ = TINT; }
+			| '*' expression				{ $$ = getType($2/*type*/); }
+			| '&' left_value				{ $$ = getType($2/*type*/); }
+			| expression '+' expression			{ if (cmpTypesList($1/*type*/, 2/*listSize*/, TINT, TNUMB) 
+									   || cmpTypesList($3/*type*/, 2/*listSize*/, TINT, TNUMB)) { yyerror(ERR_OPTYPE); }
+									  if (!cmpTypes($1/*type*/, TNUMB) || !cmpTypes($3/*type*/, TNUMB)) { $$ = TNUMB; } else { $$ = TINT; } }
+			| expression '-' expression			{ if (cmpTypesList($1/*type*/, 2/*listSize*/, TINT, TNUMB) 
+									   || cmpTypesList($3/*type*/, 2/*listSize*/, TINT, TNUMB)) { yyerror(ERR_OPTYPE); }
+									  if (!cmpTypes($1/*type*/, TNUMB) || !cmpTypes($3/*type*/, TNUMB)) { $$ = TNUMB; } else { $$ = TINT; } }
+			| expression '*' expression			{ if (cmpTypesList($1/*type*/, 2/*listSize*/, TINT, TNUMB) 
+									   || cmpTypesList($3/*type*/, 2/*listSize*/, TINT, TNUMB)) { yyerror(ERR_OPTYPE); }
+									  if (!cmpTypes($1/*type*/, TNUMB) || !cmpTypes($3/*type*/, TNUMB)) { $$ = TNUMB; } else { $$ = TINT; } }
+			| expression '/' expression			{ if (cmpTypesList($1/*type*/, 2/*listSize*/, TINT, TNUMB) 
+									   || cmpTypesList($3/*type*/, 2/*listSize*/, TINT, TNUMB)) { yyerror(ERR_OPTYPE); }
+									  if (!cmpTypes($1/*type*/, TNUMB) || !cmpTypes($3/*type*/, TNUMB)) { $$ = TNUMB; } else { $$ = TINT; } }
+			| expression '%' expression			{ if (cmpTypes($1/*type*/, TINT) 
+									   || cmpTypes($3/*type*/, TINT)) { yyerror(ERR_OPTYPE); }
+									  if (cmpTypes($1/*type*/, $3/*type*/)) { yyerror(ERR_MISTYPES); } $$ = getType($1/*type*/); }
+			| expression '<' expression			{ if (cmpTypesList($1/*type*/, 3/*listSize*/, TINT, TNUMB, TSTR) 
+									   || cmpTypesList($3/*type*/, 3/*listSize*/, TINT, TNUMB, TSTR)) { yyerror(ERR_OPTYPE); }
+									  if (cmpTypes($1/*type*/, $3/*type*/)) { yyerror(ERR_MISTYPES); } $$ = TINT; }
+			| expression '>' expression			{ if (cmpTypesList($1/*type*/, 3/*listSize*/, TINT, TNUMB, TSTR) 
+									   || cmpTypesList($3/*type*/, 3/*listSize*/, TINT, TNUMB, TSTR)) { yyerror(ERR_OPTYPE); }
+									  if (cmpTypes($1/*type*/, $3/*type*/)) { yyerror(ERR_MISTYPES); } $$ = TINT; }
+			| expression '=' expression			{ if (cmpTypesList($1/*type*/, 3/*listSize*/, TINT, TNUMB, TSTR) 
+									   || cmpTypesList($3/*type*/, 3/*listSize*/, TINT, TNUMB, TSTR)) { yyerror(ERR_OPTYPE); }
+									  if (cmpTypes($1/*type*/, $3/*type*/)) { yyerror(ERR_MISTYPES); } $$ = TINT; }
+			| expression '|' expression			{ if (cmpTypes($1/*type*/, TINT) 
+									   || cmpTypes($3/*type*/, TINT)) { yyerror(ERR_OPTYPE); }
+									  if (cmpTypes($1/*type*/, $3/*type*/)) { yyerror(ERR_MISTYPES); } $$ = getType($1/*type*/); }
+			| expression '&' expression			{ if (cmpTypes($1/*type*/, TINT) 
+									   || cmpTypes($3/*type*/, TINT)) { yyerror(ERR_OPTYPE); }
+									  if (cmpTypes($1/*type*/, $3/*type*/)) { yyerror(ERR_MISTYPES); } $$ = getType($1/*type*/); }
+			| expression GE expression			{ if (cmpTypesList($1/*type*/, 2/*listSize*/, TINT, TNUMB, TSTR) 
+									   || cmpTypesList($3/*type*/, 2/*listSize*/, TINT, TNUMB, TSTR)) { yyerror(ERR_OPTYPE); }
+									  if (cmpTypes($1/*type*/, $3/*type*/)) { yyerror(ERR_MISTYPES); } $$ = TINT; }
+			| expression LE expression			{ if (cmpTypesList($1/*type*/, 2/*listSize*/, TINT, TNUMB, TSTR) 
+									   || cmpTypesList($3/*type*/, 2/*listSize*/, TINT, TNUMB, TSTR)) { yyerror(ERR_OPTYPE); }
+									  if (cmpTypes($1/*type*/, $3/*type*/)) { yyerror(ERR_MISTYPES); } $$ = TINT; }
+			| expression NE expression			{ if (cmpTypesList($1/*type*/, 2/*listSize*/, TINT, TNUMB, TSTR) 
+									   || cmpTypesList($3/*type*/, 2/*listSize*/, TINT, TNUMB, TSTR)) { yyerror(ERR_OPTYPE); }
+									  if (cmpTypes($1/*type*/, $3/*type*/)) { yyerror(ERR_MISTYPES); } $$ = TINT; }
+			| '(' expression ')'				{ $$ = getType($2/*type*/); }
 			;
 
 %%
@@ -292,8 +340,25 @@ int cmpTypesList(int src, int size, ...) {
 
 void mkcall(char *func, long eargs) {
 	long fargs; 
+	int i;
 	int type = IDfind(func, &fargs); /* yyerror if ID does not exist */
+	if (getFunc(type) != TFUNC) { yyerror(ERR_NOTFUNC); return; }
+	if (fargs != eargs) { yyerror(ERR_WRONGNARGS); return; }
 	
-	if (getFunc(type) != TFUNC) { yyerror(ERR_NOTFUNC); }
-	if (fargs != eargs) { yyerror(ERR_WRONGNARGS); }
+	for (i = 0; i < nFuncs; i++) {
+		if (!strcmp(func, funcParams[i].func_ident)) {
+			int j;
+			for (j = 0; j < nInvocParams; j++) {
+				if (!strcmp(func, funcInvocParams[j].func_ident)) {
+					if (funcParams[i].nArgs == funcInvocParams[j].nArgs) {
+						int k;
+						for (k = funcInvocParams[j].nArgs-1; k >= 0; k--) {
+							if (cmpTypes(funcParams[i].type[funcInvocParams[j].nArgs-k-1], funcInvocParams[j].type[k])) { yyerror(ERR_WRONGTARGS); }
+						}
+					}
+				}
+			}
+		}
+	}
+	nInvocParams = (nInvocParams + 1) % 64;
 }

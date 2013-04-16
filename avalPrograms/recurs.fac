@@ -3,6 +3,6 @@
 =>
 
 public number fact (integer i) {
-	if i = 0 then { fact := 1; }
+	if i = 0 then { fact := 1.0; }
 	else { fact := i * fact(i-1); }
 };
