@@ -6,7 +6,7 @@
 public void prints(string s)
 public void printd(number d)
 public integer atoi(string s)
-public number fact(integer i)
+public number factorial(integer i)
 
 public integer entry(integer argc, string *argv, string *envp) {
 	if argc = 2 then {
@@ -14,6 +14,6 @@ public integer entry(integer argc, string *argv, string *envp) {
 	} else if argc > 2 then {
 		prints("Incorrect number of arguments.\n")
 	} else {
-		printd(fact(5))
+		printd(factorial(5))
 	}
 };

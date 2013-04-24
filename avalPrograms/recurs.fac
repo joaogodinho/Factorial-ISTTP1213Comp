@@ -2,7 +2,7 @@
 	Implements fact function recursively
 =>
 
-public number fact (integer i) {
-	if i = 0 then { fact := 1.0; }
-	else { fact := i * fact(i-1); }
+public number factorial(integer i) {
+	if i = 0 then { factorial := 1.0; }
+	else { factorial := i * factorial(i-1); }
 };

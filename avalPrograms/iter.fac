@@ -2,8 +2,8 @@
 	Implements fact function iteratively
 =>
 
-public number fact (integer i) {
+public number factorial(integer i) {
 	integer x
 	fact := 1
-	for x in 0 upto i do { fact := fact * x; }
+	for x in 1 upto i do { factorial := factorial * x; }
 };
