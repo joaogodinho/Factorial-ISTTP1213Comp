@@ -1,0 +1,7 @@
+submeteu ficheiro .tgz com formato .tar
+Sem Makefile no directório principal
+fact: rotina chama-se factorial
+iter: rotina chama-se factorial; factorial é sempre 0 porque 'x' é iniciado a 0, fazendo 'fact' igual a 0 (elemento absorvente :-)
+mean: não lê do terminal
+rand: argumento de srand deve ser positivo
+string: não pode atribuir 'string*' a 'string'; 'upto' é 0 ou 1

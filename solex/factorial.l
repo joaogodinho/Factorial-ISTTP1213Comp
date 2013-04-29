@@ -3,6 +3,7 @@
 #include <string.h>
 #include <math.h>
 #include <errno.h>
+#include <limits.h>
 #include "y.tab.h"
 #define TRUE 1
 #define FALSE 0
@@ -10,7 +11,7 @@ int nComBlock = 0;
 int needsDelim = FALSE;
 void strTreatHex();
 void strTreatEscape(char c);
-int treatOctal();
+void treatOctal();
 void yyerror(char *s);
 
 %} 
@@ -53,15 +54,17 @@ void yyerror(char *s);
 
 0[0-9]+				treatOctal(); needsDelim = TRUE; return INTEGER;
 
-0b[01]+				{ yylval.i = strtol(&yytext[2], 0, 2);
+0b[01]+				{ int long numb = strtol(&yytext[2], 0, 2); 
+				if (numb < INT_MIN || numb > INT_MAX) { yyerror("integer overflow"); }
+				yylval.i = (int) numb;
 				needsDelim = TRUE;
-				if (errno == ERANGE) { yyerror("integer overflow"); }
-				else { return INTEGER; } }
+				return INTEGER; }
 
-[0-9]+				{ yylval.i = strtol(yytext, 0, 10); 
+[0-9]+				{ int long numb = strtol(yytext, 0, 10); 
+				if (numb < INT_MIN || numb > INT_MAX) { yyerror("integer overflow"); }
+				yylval.i = (int) numb; 
 				needsDelim = TRUE;
-				if (errno == ERANGE) { yyerror("integer overflow"); }
-				else { return INTEGER; } }
+				return INTEGER; }
 
 [0-9]+\.[0-9]+([eE][0-9]+)?	yylval.d = strtod(yytext, NULL); needsDelim = TRUE; return NUMBER; 
 
@@ -69,6 +72,7 @@ void yyerror(char *s);
 <STR>\\([0-9a-fA-F]{1,2})	strTreatHex();
 <STR>\"				yytext[yyleng-1] = '\0'; needsDelim = TRUE; BEGIN INITIAL; return STRING;
 <STR>\\n|\\t|\\r|\\\"		strTreatEscape(yytext[yyleng-1]);
+<STR>\\.			yyerror("invalid escape character");
 <STR>.				yymore();
 
 [-+*\/%<>=|&~]			return *yytext;
@@ -79,7 +83,7 @@ void yyerror(char *s);
 [ \t\r]+			; /* whitespace */
 .				yyerror("Unknown character");
 %% 
-int yywrap(void) { return 1; } 
+int yywrap(void) { if (nComBlock > 0) { yyerror("unfinished comment block"); } else return 1; } 
 char *getyytext() { return yytext; }
 
 void strTreatHex() {
@@ -101,15 +105,13 @@ void strTreatEscape(char c) {
 	yymore();
 }
 
-int treatOctal() {
+void treatOctal() {
 	int i, final = 0, size = yyleng-1;
-	long int numb = strtol(&yytext[1], 0, 10);
+	int long numb = strtol(&yytext[1], 0, 10);
+	if (numb < INT_MIN || numb > INT_MAX) { yyerror("integer overflow"); return; }
 	for (i = 0; i < size; i++) {
 		final += numb % 10 * pow(8,i);
 		numb /= 10;
 	}
-	printf("%d\n", final);
 	yylval.i = final;
-	if (errno == ERANGE) { yyerror("integer overflow"); }
-	else { return INTEGER; }
 }
