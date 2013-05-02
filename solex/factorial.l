@@ -8,6 +8,7 @@
 #define TRUE 1
 #define FALSE 0
 int nComBlock = 0;
+int insideStringCom = FALSE;
 int needsDelim = FALSE;
 void strTreatHex();
 void strTreatEscape(char c);
@@ -20,8 +21,9 @@ void yyerror(char *s);
 %% 
 "==".*				; /* ignore everything inside comments */
 "=<"				nComBlock++; BEGIN COM;
-<COM>"=>"			if (--nComBlock == 0) { BEGIN INITIAL; }
-<COM>"=<"			nComBlock++;
+<COM>"=>"			if (!insideStringCom) { if (--nComBlock == 0) { BEGIN INITIAL; } }
+<COM>"=<"			if (!insideStringCom) { nComBlock++; }
+<COM>\"				insideStringCom = (insideStringCom + 1) % 2;
 <COM>.|\n			; /* ignore everything inside comments */
 
 ">="				return GE;
@@ -107,11 +109,12 @@ void strTreatEscape(char c) {
 
 void treatOctal() {
 	int i, final = 0, size = yyleng-1;
-	int long numb = strtol(&yytext[1], 0, 10);
-	if (numb < INT_MIN || numb > INT_MAX) { yyerror("integer overflow"); return; }
+	int long temp = 0, numb = strtol(&yytext[1], 0, 10);
 	for (i = 0; i < size; i++) {
-		final += numb % 10 * pow(8,i);
+		temp += numb % 10 * pow(8,i);
 		numb /= 10;
 	}
+	if (temp < INT_MIN || temp > INT_MAX) { yyerror("integer overflow"); return; }
+	final = temp;
 	yylval.i = final;
 }

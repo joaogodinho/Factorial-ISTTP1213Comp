@@ -12,12 +12,21 @@ DONE
 	- factorial.l
 + Analise sintactia
 	- factorial.y
-
-TODO
 + Analise semantica
 	- programa 'factorial'
 
---ENTREGA INTERMEDIA--
+TODO
++ Corrigir exemplos errados
+	- badarg.fac
+	- constassign.fac
+	- nobreak.fac
+	- noinit.fac
+	- shadow2.fac
++ Corrigir exemplos certos
+	- factorial.fac
+	- forward.fac
+	- funcptr.fac
+	- real.fac
 
 + Construçao da arvore sintactica 
 	- preparar para processamento pelo pburg
