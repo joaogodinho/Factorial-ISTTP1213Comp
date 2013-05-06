@@ -6,7 +6,7 @@
 
 char *ext = ".asm", *prog, *infile = "<<stdin>>", *outfile = "out.asm";
 int errors, opt, tree, trace, yyparse(void);
-//FILE *outfp;
+FILE *outfp;
 
 int yyerror(char *s)
 {
@@ -50,7 +50,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  /*if (argc == 2) {
+  if (argc == 2) {
       char *ptr;
       outfile = malloc(strlen(argv[1])+strlen(ext)+1);
       strcpy(outfile, argv[1]);
@@ -63,12 +63,12 @@ int main(int argc, char *argv[]) {
   if ((outfp = fopen(outfile, "w")) == NULL) {
     perror(outfile);
     return 1;
-  }*/
+  }
 
   if (yyparse() != 0 || errors > 0) {
     fprintf(stderr, "%d errors in %s\n", errors, infile);
     return 1;
   }
-  //fclose(outfp);
+  fclose(outfp);
   return 0;
 }
