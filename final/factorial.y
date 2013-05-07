@@ -22,17 +22,20 @@ As expressões regulares são identificadas pelo número da linha em que se enco
 #include <stdarg.h>
 #include <string.h> 
 #include <stdarg.h>
+#include "node.h"
 #include "tabid.h"
 
+extern char **yynames;
 %}
 
 %union {
 	int i;			/* integer value */
 	char *s;		/* symbol name or string literal */
 	double d;		/* number value */
+	Node *n;
 };
 
-%token <i> INTEGER
+%token <i> INTEGER 
 %token <s> STRING IDENT
 %token <d> NUMBER
 %token VOID VINT VSTR PUBLIC VNUMB CONST IF THEN ELSE WHILE
@@ -53,7 +56,7 @@ As expressões regulares são identificadas pelo número da linha em que se enco
 %type <s> declarator declaration_specifiers 
 
 %%
-file			: entry_point					
+file			: entry_point					{ printNode(nilNode(INTEGER), stdout, NULL); }
 			| /* empty file */
 			;
 

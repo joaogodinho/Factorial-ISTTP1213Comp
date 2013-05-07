@@ -4,6 +4,7 @@
 #include <math.h>
 #include <errno.h>
 #include <limits.h>
+#include "node.h"
 #include "y.tab.h"
 #define TRUE 1
 #define FALSE 0
@@ -68,7 +69,7 @@ void yyerror(char *s);
 				needsDelim = TRUE;
 				return INTEGER; }
 
-[0-9]+\.[0-9]+([eE][0-9]+)?	yylval.d = strtod(yytext, NULL); needsDelim = TRUE; return NUMBER; 
+-{0,1}[0-9]+\.[0-9]+([eE][0-9]+)?	yylval.d = strtod(yytext, NULL); needsDelim = TRUE; printf("%f\n", yylval.d); return NUMBER; 
 
 \"				BEGIN STR;
 <STR>\\([0-9a-fA-F]{1,2})	strTreatHex();

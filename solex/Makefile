@@ -7,7 +7,7 @@ YACC=byacc -dv
 $(LANG): solex.y $(LANG).l
 	$(YACC) -dv solex.y
 	$(LEX) -l $(LANG).l
-	gcc -o $(LANG) -DYYDEBUG lex.yy.c y.tab.c -lm
+	gcc -o $(LANG) -DYYDEBUG -I../lib lex.yy.c y.tab.c -lm
 
 install:: $(LANG)
 	echo "not a delivrable"
