@@ -25,7 +25,8 @@ As expressões regulares são identificadas pelo número da linha em que se enco
 #include "node.h"
 #include "tabid.h"
 
-extern char **yynames;
+extern void program(Node *body); 
+
 %}
 
 %union {
@@ -40,7 +41,7 @@ extern char **yynames;
 %token <d> NUMBER
 %token VOID VINT VSTR PUBLIC VNUMB CONST IF THEN ELSE WHILE
 %token DO FOR IN STEP UPTO DOWNTO BREAK CONTINUE IDENT STRING
-%token NONE POINTER
+%token ROOT FACEXP NOTEXP ADDREXP VALEXP BINOPSUM BINOPMIN BINOPMUL BINOPDIV BINOPREM BINOPLESS BINOPGREAT BINOPEQ BINOPOR BINOPAND BINOPEQ BINOPGEQ BINOPLEQ BINOPNEQ EXPRESSION
 
 %nonassoc IFX '(' ')' '[' ']' PP MM '~' '!'
 %nonassoc ELSE
@@ -52,11 +53,10 @@ extern char **yynames;
 %left '*' '/' '%' 
 %nonassoc UMINUS
 
-%type <i> type_specifier keywords_specifiers init_declarator initializer func_parameters func_parameters_aux func_invoc_param func_invoc_param_aux left_value expression
-%type <s> declarator declaration_specifiers 
+%type <n> type_specifier keywords_specifiers init_declarator initializer func_parameters func_parameters_aux func_invoc_param func_invoc_param_aux left_value expression declarator declaration_specifiers 
 
 %%
-file			: entry_point					{ printNode(nilNode(INTEGER), stdout, NULL); }
+file			: entry_point					{ program(nilNode(ROOT)); }
 			| /* empty file */
 			;
 
@@ -179,24 +179,31 @@ expression		: left_value 					{ }
 			| left_value MM					{ }
 			| initializer					{ }
 			| '-' expression %prec UMINUS			{ }
-			| expression '!'				{ }
-			| '~' expression				{ }
+			| expression '!'				{ $$ = uniNode(FACEXP, $1); }
+			| '~' expression				{ $$ = uniNode(NOTEXP, $2); }
 			| '*' expression				{ }
 			| '&' left_value				{ }
-			| expression '+' expression			{ }
-			| expression '-' expression			{ }
-			| expression '*' expression			{ }
-			| expression '/' expression			{ }
-			| expression '%' expression			{ }
-			| expression '<' expression			{ }
-			| expression '>' expression			{ }
-			| expression '=' expression			{ }
-			| expression '|' expression			{ }
-			| expression '&' expression			{ }
-			| expression GE expression			{ }
-			| expression LE expression			{ }
-			| expression NE expression			{ }
-			| '(' expression ')'				{ }
+			| expression '+' expression			{ $$ = binNode(BINOPSUM, $1, $3); }
+			| expression '-' expression			{ $$ = binNode(BINOPMIN, $1, $3); }
+			| expression '*' expression			{ $$ = binNode(BINOPMUL, $1, $3); }
+			| expression '/' expression			{ $$ = binNode(BINOPDIV, $1, $3); }
+			| expression '%' expression			{ $$ = binNode(BINOPREM, $1, $3); }
+			| expression '<' expression			{ $$ = binNode(BINOPLESS, $1, $3); }
+			| expression '>' expression			{ $$ = binNode(BINOPGREAT, $1, $3); }
+			| expression '=' expression			{ $$ = binNode(BINOPEQ, $1, $3); }
+			| expression '|' expression			{ $$ = binNode(BINOPOR, $1, $3); }
+			| expression '&' expression			{ $$ = binNode(BINOPAND, $1, $3); }
+			| expression GE expression			{ $$ = binNode(BINOPGEQ, $1, $3); }
+			| expression LE expression			{ $$ = binNode(BINOPLEQ, $1, $3); }
+			| expression NE expression			{ $$ = binNode(BINOPNEQ, $1, $3); }
+			| '(' expression ')'				{ $$ = uniNode(EXPRESSION, $2); }
 			;
 
 %%
+
+char **yynames =
+#if YYDEBUG > 0
+	(char**) yyname;
+#else
+	0;
+#endif

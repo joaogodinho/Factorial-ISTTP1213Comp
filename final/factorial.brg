@@ -1,0 +1,35 @@
+%{
+/* 
+ * Instruction selection with postfix.h
+ */
+#include <stdio.h>
+#include <assert.h>
+#include <stdlib.h>
+#include <string.h>
+#include "node.h"
+#include "tabid.h"
+#include "postfix.h"
+#include "y.tab.h"
+
+#ifndef U_
+#define U_ "_"
+#endif
+
+extern FILE *outfp;
+extern char **yynames;
+
+%}
+%include "y.tab.h"
+%%
+%%
+
+void function(char *name, Node *body) {
+	int i;
+	extern int trace;
+	if(trace) printNode(body, stdout, yynames);
+	freeNode(body);
+}
+
+void program(Node *body) {
+	function("_main", body);
+}
