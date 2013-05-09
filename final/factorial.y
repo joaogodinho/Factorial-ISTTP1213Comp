@@ -42,6 +42,7 @@ extern void program(Node *body);
 %token VOID VINT VSTR PUBLIC VNUMB CONST IF THEN ELSE WHILE
 %token DO FOR IN STEP UPTO DOWNTO BREAK CONTINUE IDENT STRING
 %token ROOT FACEXP NOTEXP ADDREXP VALEXP BINOPSUM BINOPMIN BINOPMUL BINOPDIV BINOPREM BINOPLESS BINOPGREAT BINOPEQ BINOPOR BINOPAND BINOPEQ BINOPGEQ BINOPLEQ BINOPNEQ EXPRESSION
+%token DECLS DECL DECL_SPEC PUBLIC_CONST END IDENT_PTR INIT_DECL FUNC_PARAM PARAM BODY BODY
 
 %nonassoc IFX '(' ')' '[' ']' PP MM '~' '!'
 %nonassoc ELSE
@@ -53,43 +54,43 @@ extern void program(Node *body);
 %left '*' '/' '%' 
 %nonassoc UMINUS
 
-%type <n> type_specifier keywords_specifiers init_declarator initializer func_parameters func_parameters_aux func_invoc_param func_invoc_param_aux left_value expression declarator declaration_specifiers 
+%type <n> entry_point declaration type_specifier keywords_specifiers init_declarator initializer func_parameters func_parameters_aux func_invoc_param func_invoc_param_aux left_value expression declarator declaration_specifiers body body_contents parameter parameters statement
 
 %%
-file			: entry_point					{ program(nilNode(ROOT)); }
+file			: entry_point					{ program(uniNode(ROOT, $1)); }
 			| /* empty file */
 			;
 
-entry_point		: declaration
-			| entry_point declaration
+entry_point		: declaration					{ $$ = $1; }
+			| entry_point declaration			{ $$ = subNode(DECLS, 2, $1, $2); }
 			;
 
-declaration		: declaration_specifiers ';'			{ }
-			| declaration_specifiers init_declarator ';'
+declaration		: declaration_specifiers ';'			{ $$ = subNode(DECL, 1, $1); }
+			| declaration_specifiers init_declarator ';'	{ $$ = subNode(DECL, 2, $1, $2); }
 			;
 
-declaration_specifiers	: keywords_specifiers type_specifier declarator	{ } 
+declaration_specifiers	: keywords_specifiers type_specifier declarator	{ $$ = subNode(DECL_SPEC, 3, $1, $2, $3); } 
 			;
 
-keywords_specifiers	: PUBLIC					{ }
-			| PUBLIC CONST					{ }
-			| CONST						{ }
-			| /* no specifiers */				{ }
+keywords_specifiers	: PUBLIC					{ $$ = nilNode(PUBLIC); }
+			| PUBLIC CONST					{ $$ = nilNode(PUBLIC_CONST); }
+			| CONST						{ $$ = nilNode(CONST); }
+			| /* no specifiers */				{ $$ = nilNode(END); }
 			;
 
-type_specifier		: VINT						{ }
-			| VSTR						{ }
-			| VNUMB						{ }
-			| VOID						{ }
+type_specifier		: VINT						{ $$ = nilNode(VINT); }
+			| VSTR						{ $$ = nilNode(VSTR); }
+			| VNUMB						{ $$ = nilNode(VNUMB); }
+			| VOID						{ $$ = nilNode(VOID); }
 			;
 	
 init_declarator		: ASG initializer				{ }
 			| ASG IDENT					{ }
-			| '(' func_parameters ')' body			{ }
+			| '(' func_parameters ')' body			{ $$ = subNode(INIT_DECL, 2, $2, $4); }
 			;
 
-declarator		: '*' IDENT					{ }
-			| IDENT						{ }
+declarator		: '*' IDENT					{ $$ = strNode(IDENT_PTR, $2); }
+			| IDENT						{ $$ = strNode(IDENT, $1); }
 			;
 
 initializer		: INTEGER					{ }
@@ -97,28 +98,28 @@ initializer		: INTEGER					{ }
 			| NUMBER					{ }
 			;
 
-body			: /* no body */
-			| '{' body_contents '}'	
+body			: /* no body */					{ $$ = nilNode(END); }
+			| '{' body_contents '}'				{ $$ = $2; }
 			;
 
-body_contents		: /* no contents */
-			| body_contents parameters
-			| body_contents statement
+body_contents		: /* no contents */				{ $$ = nilNode(END); }
+			| body_contents parameters			{ $$ = subNode(BODY, 1, $2); }
+			| body_contents statement			{ $$ = subNode(BODY, 1, $2); }
 			;
 
-func_parameters		: func_parameters_aux				{ }
-			| /* no parameters */				{ }
+func_parameters		: func_parameters_aux				{ $$ = $1; }
+			| /* no parameters */				{ $$ = nilNode(END); }
 			;
 
-func_parameters_aux	: parameter					{ }
-			| parameter ',' func_parameters_aux		{ }
+func_parameters_aux	: parameter					{ $$ = subNode(FUNC_PARAM, 1, $1); }
+			| parameter ',' func_parameters_aux		{ $$ = subNode(FUNC_PARAM, 2, $1, $3); }
 			;
 
 parameters		: parameter ';'
 			| parameter ',' parameters
 			;
 
-parameter		: type_specifier declarator			{ }
+parameter		: type_specifier declarator			{ $$ = subNode(PARAM, 2, $1, $2); }
 			;
 
 statement		: selection_statement
