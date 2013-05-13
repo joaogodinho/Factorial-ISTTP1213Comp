@@ -42,7 +42,7 @@ extern void program(Node *body);
 %token VOID VINT VSTR PUBLIC VNUMB CONST IF THEN ELSE WHILE
 %token DO FOR IN STEP UPTO DOWNTO BREAK CONTINUE IDENT STRING
 %token ROOT FACEXP NOTEXP ADDREXP VALEXP BINOPSUM BINOPMIN BINOPMUL BINOPDIV BINOPREM BINOPLESS BINOPGREAT BINOPEQ BINOPOR BINOPAND BINOPEQ BINOPGEQ BINOPLEQ BINOPNEQ EXPRESSION
-%token DECLS DECL DECL_SPEC PUBLIC_CONST END IDENT_PTR INIT_DECL FUNC_PARAM PARAM BODY BODY
+%token DECLS DECL DECL_SPEC PUBLIC_CONST END IDENT_PTR INIT_DECL FUNC_PARAM PARAM BODY BODY LEFTVALUE
 
 %nonassoc IFX '(' ')' '[' ']' PP MM '~' '!'
 %nonassoc ELSE
@@ -54,7 +54,7 @@ extern void program(Node *body);
 %left '*' '/' '%' 
 %nonassoc UMINUS
 
-%type <n> entry_point declaration type_specifier keywords_specifiers init_declarator initializer func_parameters func_parameters_aux func_invoc_param func_invoc_param_aux left_value expression declarator declaration_specifiers body body_contents parameter parameters statement
+%type <n> entry_point declaration type_specifier keywords_specifiers init_declarator initializer func_parameters func_parameters_aux func_invoc_param func_invoc_param_aux left_value expression declarator declaration_specifiers body body_contents parameter parameters statement selection_statement iteration_statement statement_body jump_statement
 
 %%
 file			: entry_point					{ program(uniNode(ROOT, $1)); }
@@ -84,8 +84,8 @@ type_specifier		: VINT						{ $$ = nilNode(VINT); }
 			| VOID						{ $$ = nilNode(VOID); }
 			;
 	
-init_declarator		: ASG initializer				{ }
-			| ASG IDENT					{ }
+init_declarator		: ASG initializer				{ $$ = $2; }
+			| ASG IDENT					{ $$ = strNode(IDENT, $2); }
 			| '(' func_parameters ')' body			{ $$ = subNode(INIT_DECL, 2, $2, $4); }
 			;
 
@@ -93,9 +93,9 @@ declarator		: '*' IDENT					{ $$ = strNode(IDENT_PTR, $2); }
 			| IDENT						{ $$ = strNode(IDENT, $1); }
 			;
 
-initializer		: INTEGER					{ }
-			| STRING					{ }
-			| NUMBER					{ }
+initializer		: INTEGER					{ $$ = intNode(INTEGER, $1); }
+			| STRING					{ $$ = strNode(STRING, $1); }
+			| NUMBER					{ $$ = realNode(NUMBER, $1); }
 			;
 
 body			: /* no body */					{ $$ = nilNode(END); }
@@ -111,28 +111,27 @@ func_parameters		: func_parameters_aux				{ $$ = $1; }
 			| /* no parameters */				{ $$ = nilNode(END); }
 			;
 
-func_parameters_aux	: parameter					{ $$ = subNode(FUNC_PARAM, 1, $1); }
+func_parameters_aux	: parameter					{ $$ = $1; }
 			| parameter ',' func_parameters_aux		{ $$ = subNode(FUNC_PARAM, 2, $1, $3); }
 			;
 
-parameters		: parameter ';'
-			| parameter ',' parameters
+parameters		: parameter ';'					{ $$ = $1; }
+			| parameter ',' parameters			{ $$ = subNode(PARAM, 2, $1, $3); }
 			;
 
 parameter		: type_specifier declarator			{ $$ = subNode(PARAM, 2, $1, $2); }
 			;
 
-statement		: selection_statement
-			| iteration_statement
-			| expression ';'
-			| statement_body
-			| jump_statement
-			| left_value '#' expression ';'
+statement		: selection_statement				{ $$ = $1; }
+			| iteration_statement				{ $$ = $1; }
+			| expression ';'				{ $$ = $1; }
+			| statement_body				{ $$ = $1; }
+			| jump_statement				{ $$ = $1; }
+			| left_value '#' expression ';'			{ $$ = subNode(LEFTVALUE, 2, $1, $3); }
 			| ';'
 			;
 
-statement_body		: '{' 						{ } 
-			  body_contents '}'				{ }
+statement_body		: '{' body_contents '}'				{ }
 			;
 
 left_value		: IDENT						{ }
