@@ -73,7 +73,7 @@ void yyerror(char *s);
 
 \"				BEGIN STR;
 <STR>\\([0-9a-fA-F]{1,2})	strTreatHex();
-<STR>\"				yytext[yyleng-1] = '\0'; needsDelim = TRUE; BEGIN INITIAL; return STRING;
+<STR>\"				yytext[yyleng-1] = '\0'; yylval.s = strdup(yytext); needsDelim = TRUE; BEGIN INITIAL; return STRING;
 <STR>\\n|\\t|\\r|\\\"		strTreatEscape(yytext[yyleng-1]);
 <STR>\\.			yyerror("invalid escape character");
 <STR>.				yymore();

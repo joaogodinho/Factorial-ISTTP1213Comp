@@ -42,7 +42,7 @@ extern void program(Node *body);
 %token VOID VINT VSTR PUBLIC VNUMB CONST IF THEN ELSE WHILE
 %token DO FOR IN STEP UPTO DOWNTO BREAK CONTINUE IDENT STRING
 %token ROOT FACEXP NOTEXP ADDREXP VALEXP BINOPSUM BINOPMIN BINOPMUL BINOPDIV BINOPREM BINOPLESS BINOPGREAT BINOPEQ BINOPOR BINOPAND BINOPEQ BINOPGEQ BINOPLEQ BINOPNEQ EXPRESSION
-%token DECLS DECL DECL_SPEC PUBLIC_CONST END IDENT_PTR INIT_DECL FUNC_PARAM PARAM BODY BODY LEFTVALUE
+%token DECLS DECL DECL_SPEC PUBLIC_CONST END IDENT_PTR INIT_DECL FUNC_PARAM PARAM BODY BODY LEFTVALUE IFSTATEMENT IFELSESTATEMENT DOSTATEMENT FORSTATEMENT PPA MMA REFPTR DERPTR
 
 %nonassoc IFX '(' ')' '[' ']' PP MM '~' '!'
 %nonassoc ELSE
@@ -54,7 +54,7 @@ extern void program(Node *body);
 %left '*' '/' '%' 
 %nonassoc UMINUS
 
-%type <n> entry_point declaration type_specifier keywords_specifiers init_declarator initializer func_parameters func_parameters_aux func_invoc_param func_invoc_param_aux left_value expression declarator declaration_specifiers body body_contents parameter parameters statement selection_statement iteration_statement statement_body jump_statement
+%type <n> entry_point declaration type_specifier keywords_specifiers init_declarator initializer func_parameters func_parameters_aux func_invoc_param func_invoc_param_aux left_value expression declarator declaration_specifiers body body_contents parameter parameters statement selection_statement iteration_statement statement_body jump_statement for_cond for_step
 
 %%
 file			: entry_point					{ program(uniNode(ROOT, $1)); }
@@ -103,8 +103,8 @@ body			: /* no body */					{ $$ = nilNode(END); }
 			;
 
 body_contents		: /* no contents */				{ $$ = nilNode(END); }
-			| body_contents parameters			{ $$ = subNode(BODY, 1, $2); }
-			| body_contents statement			{ $$ = subNode(BODY, 1, $2); }
+			| parameters body_contents			{ $$ = subNode(BODY, 2, $1, $2); }
+			| statement body_contents			{ $$ = subNode(BODY, 2, $1, $2); }
 			;
 
 func_parameters		: func_parameters_aux				{ $$ = $1; }
@@ -125,64 +125,63 @@ parameter		: type_specifier declarator			{ $$ = subNode(PARAM, 2, $1, $2); }
 statement		: selection_statement				{ $$ = $1; }
 			| iteration_statement				{ $$ = $1; }
 			| expression ';'				{ $$ = $1; }
-			| statement_body				{ $$ = $1; }
 			| jump_statement				{ $$ = $1; }
 			| left_value '#' expression ';'			{ $$ = subNode(LEFTVALUE, 2, $1, $3); }
-			| ';'
+			| statement_body				{ $$ = $1; }
+			| ';'						{ $$ = nilNode(END); }
 			;
 
-statement_body		: '{' body_contents '}'				{ }
+statement_body		: '{' body_contents '}'				{ $$ = $2; }
 			;
 
-left_value		: IDENT						{ }
-			| IDENT '[' expression ']'			{ }
+left_value		: IDENT						{ $$ = strNode(IDENT, $1); }
+			| IDENT '[' expression ']'			{ $$ = subNode(LEFTVALUE, 2, strNode(IDENT, $1), $3); }
 			;
 
-selection_statement	: IF expression THEN statement %prec IFX
-			| IF expression THEN statement ELSE statement
+selection_statement	: IF expression THEN statement %prec IFX	{ $$ = subNode(IFSTATEMENT, 2, $2, $4); }
+			| IF expression THEN statement ELSE statement	{ $$ = subNode(IFELSESTATEMENT, 3, $2, $4, $6); }
 			;
 
 
-iteration_statement	: DO statement WHILE expression ';'
-			| FOR left_value IN expression for_cond expression for_step DO statement
+iteration_statement	: DO statement WHILE expression ';'		{ $$ = subNode(DOSTATEMENT, 2, $2, $4); }
+			| FOR left_value IN expression for_cond expression for_step DO statement { $$ = subNode(FORSTATEMENT, 6, $2, $4, $5, $6, $7, $9); }
 			;
 
-jump_statement		: BREAK INTEGER ';'
-			| BREAK ';'
-			| CONTINUE INTEGER ';'
-			| CONTINUE ';'
+jump_statement		: BREAK INTEGER ';'				{ $$ = intNode(BREAK, $2); }
+			| BREAK ';'					{ $$ = intNode(BREAK, 1); }
+			| CONTINUE INTEGER ';'				{ $$ = intNode(CONTINUE, $2); }
+			| CONTINUE ';'					{ $$ = intNode(CONTINUE, 1); }
 			;
 
-for_cond		: UPTO
-			| DOWNTO
+for_cond		: UPTO						{ $$ = nilNode(UPTO); }
+			| DOWNTO					{ $$ = nilNode(DOWNTO); }
 			;
 
-for_step		: STEP expression
-			|
+for_step		: STEP expression				{ $$ = subNode(STEP, 1, $2); }
+			| /* no step */					{ $$ = nilNode(END); }
 			;
 
-func_invoc_param	: func_invoc_param_aux				{ }
-			| /* no args */					{ }
+func_invoc_param	: func_invoc_param_aux				{ $$ = $1; }
+			| /* no args */					{ $$ = nilNode(END); }
 			;
 
-func_invoc_param_aux	: expression					{ }
-			| expression ',' func_invoc_param_aux		{ }
+func_invoc_param_aux	: expression					{ $$ = $1; }
+			| expression ',' func_invoc_param_aux		{ $$ = subNode(FUNC_PARAM, 2, $1, $3); }
 			;	
 
-expression		: left_value 					{ }
-	    		| left_value ASG expression			{ }
-			| IDENT 					{ } 
-			  '(' func_invoc_param ')'			{ }
-			| PP left_value 				{ } 
-			| MM left_value					{ }
-			| left_value PP					{ }
-			| left_value MM					{ }
-			| initializer					{ }
-			| '-' expression %prec UMINUS			{ }
+expression		: left_value 					{ $$ = $1;}
+	    		| left_value ASG expression			{ $$ = subNode(LEFTVALUE, 2, $1, $3); }
+			| IDENT '(' func_invoc_param ')'		{ $$ = subNode(FUNC_PARAM, 2, strNode(IDENT, $1), $3); }
+			| PP left_value 				{ $$ = uniNode(PP, $2); } 
+			| MM left_value					{ $$ = uniNode(MM, $2); }
+			| left_value PP					{ $$ = uniNode(PPA, $1); }
+			| left_value MM					{ $$ = uniNode(MMA, $1); }
+			| initializer					{ $$ = $1; }
+			| '-' expression %prec UMINUS			{ $$ = uniNode(UMINUS, $2); }
 			| expression '!'				{ $$ = uniNode(FACEXP, $1); }
 			| '~' expression				{ $$ = uniNode(NOTEXP, $2); }
-			| '*' expression				{ }
-			| '&' left_value				{ }
+			| '*' expression				{ $$ = uniNode(REFPTR, $2); }
+			| '&' left_value				{ $$ = uniNode(DERPTR, $2); }
 			| expression '+' expression			{ $$ = binNode(BINOPSUM, $1, $3); }
 			| expression '-' expression			{ $$ = binNode(BINOPMIN, $1, $3); }
 			| expression '*' expression			{ $$ = binNode(BINOPMUL, $1, $3); }
