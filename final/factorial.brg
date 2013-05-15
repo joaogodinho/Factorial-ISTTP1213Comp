@@ -25,7 +25,7 @@ entry_point: DECLS(entry_point, declaration)
 declaration: END
 %%
 
-void function(char *name, Node *body) {
+void function(char *name, int enter, Node *body) {
 	int i;
 	extern int trace;
 	if(trace) printNode(body, stdout, yynames);
@@ -39,6 +39,6 @@ void function(char *name, Node *body) {
 }
 
 void program(int enter, Node *body) {
-	function("_main", body);
+	function("_main", enter, body);
 	fprintf(outfp, pfEXTRN pfEXTRN pfEXTRN pfEXTRN, U_"prints", U_"printi", U_"println", U_"readi");
 }

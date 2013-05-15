@@ -25,7 +25,7 @@ As expressões regulares são identificadas pelo número da linha em que se enco
 #include "node.h"
 #include "tabid.h"
 
-extern void program(Node *body); 
+extern void program(int enter, Node *body); 
 
 %}
 
