@@ -31,14 +31,14 @@ void function(char *name, Node *body) {
 	if(trace) printNode(body, stdout, yynames);
 	if (body == 0) { fprintf(outfp, pfEXTRN, name); }
 	else {
-		fprintf(outfp, pfTEXT pfALIGN pfGLOBL pfLABEL pfENTER, name, pfFUNC, name);
+		fprintf(outfp, pfTEXT pfALIGN pfGLOBL pfLABEL pfENTER, name, pfFUNC, name, enter);
 		if (yyselect(body) == 1) { yyerror("No match for syntactic tree."); }
 		fprintf(outfp, pfLEAVE pfRET);
 		freeNode(body);
 	}
 }
 
-void program(Node *body) {
+void program(int enter, Node *body) {
 	function("_main", body);
 	fprintf(outfp, pfEXTRN pfEXTRN pfEXTRN pfEXTRN, U_"prints", U_"printi", U_"println", U_"readi");
 }
