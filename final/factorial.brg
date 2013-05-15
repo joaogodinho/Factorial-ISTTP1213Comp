@@ -22,7 +22,18 @@ extern char **yynames;
 %include "y.tab.h"
 %%
 entry_point: DECLS(entry_point, declaration)
-declaration: END
+declaration: DECL(declaration_specifiers, END)
+declaration: DECL(declaration_specifiers, init_declarator) 
+declaration_specifiers: DECL_SPEC(keywords_spec, type_spec)
+init_declarator: END
+keywords_spec: PUBLIC
+keywords_spec: PUBLIC_CONST
+keywords_spec: CONST
+keywords_spec: END
+type_spec: VINT
+type_spec: VSTR
+type_spec: VNUMB
+type_spec: VOID
 %%
 
 void function(char *name, int enter, Node *body) {
