@@ -57,8 +57,8 @@ extern void program(Node *body);
 %type <n> entry_point declaration type_specifier keywords_specifiers init_declarator initializer func_parameters func_parameters_aux func_invoc_param func_invoc_param_aux left_value expression declarator declaration_specifiers body body_contents parameter parameters statement selection_statement iteration_statement statement_body jump_statement for_cond for_step
 
 %%
-file			: entry_point					{ program(uniNode(ROOT, $1)); }
-			| /* empty file */
+file			: entry_point					{ program($1); }
+			| /* empty file */				
 			;
 
 entry_point		: declaration					{ $$ = $1; }

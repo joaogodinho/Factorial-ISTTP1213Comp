@@ -21,15 +21,24 @@ extern char **yynames;
 %}
 %include "y.tab.h"
 %%
+entry_point: DECLS(entry_point, declaration)
+declaration: END
 %%
 
 void function(char *name, Node *body) {
 	int i;
 	extern int trace;
 	if(trace) printNode(body, stdout, yynames);
-	freeNode(body);
+	if (body == 0) { fprintf(outfp, pfEXTRN, name); }
+	else {
+		fprintf(outfp, pfTEXT pfALIGN pfGLOBL pfLABEL pfENTER, name, pfFUNC, name);
+		if (yyselect(body) == 1) { yyerror("No match for syntactic tree."); }
+		fprintf(outfp, pfLEAVE pfRET);
+		freeNode(body);
+	}
 }
 
 void program(Node *body) {
 	function("_main", body);
+	fprintf(outfp, pfEXTRN pfEXTRN pfEXTRN pfEXTRN, U_"prints", U_"printi", U_"println", U_"readi");
 }
