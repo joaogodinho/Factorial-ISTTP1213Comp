@@ -25,8 +25,10 @@ As expressões regulares são identificadas pelo número da linha em que se enco
 #include "node.h"
 #include "tabid.h"
 
-extern void program(int enter, Node *body); 
+int lbl; /* label counter for generated labels */
 
+extern void program(int enter, Node *body); 
+char *mklbl(int n);
 %}
 
 %union {
@@ -42,7 +44,7 @@ extern void program(int enter, Node *body);
 %token VOID VINT VSTR PUBLIC VNUMB CONST IF THEN ELSE WHILE
 %token DO FOR IN STEP UPTO DOWNTO BREAK CONTINUE IDENT STRING
 %token ROOT FACEXP NOTEXP ADDREXP VALEXP BINOPSUM BINOPMIN BINOPMUL BINOPDIV BINOPREM BINOPLESS BINOPGREAT BINOPEQ BINOPOR BINOPAND BINOPEQ BINOPGEQ BINOPLEQ BINOPNEQ EXPRESSION
-%token DECLS DECL DECL_SPEC PUBLIC_CONST END IDENT_PTR INIT_DECL FUNC_PARAM PARAM BODY BODY LEFTVALUE IFSTATEMENT IFELSESTATEMENT DOSTATEMENT FORSTATEMENT PPA MMA REFPTR DERPTR
+%token DECLS DECL DECL_SPEC PUBLIC_CONST END IDENT_PTR INIT_DECL FUNC_PARAM PARAM BODY BODY LEFTVALUE IFSTATEMENT IFELSESTATEMENT DOSTATEMENT FORSTATEMENT PPA MMA REFPTR DERPTR PARAMS EXPR FUNC_CALL
 
 %nonassoc IFX '(' ')' '[' ']' PP MM '~' '!'
 %nonassoc ELSE
@@ -57,19 +59,19 @@ extern void program(int enter, Node *body);
 %type <n> entry_point declaration type_specifier keywords_specifiers init_declarator initializer func_parameters func_parameters_aux func_invoc_param func_invoc_param_aux left_value expression declarator declaration_specifiers body body_contents parameter parameters statement selection_statement iteration_statement statement_body jump_statement for_cond for_step
 
 %%
-file			: entry_point					{ program(0, $1); }
+file			: entry_point					{ program(0, uniNode(ROOT, $1)); }
 			| /* empty file */				
 			;
 
-entry_point		: declaration					{ $$ = $1; }
-			| entry_point declaration			{ $$ = subNode(DECLS, 2, $1, $2); }
+entry_point		: declaration					{ $$ = binNode(DECLS, $1, nilNode(END)); }
+			| entry_point declaration			{ $$ = binNode(DECLS, $1, $2); }
 			;
 
-declaration		: declaration_specifiers ';'			{ $$ = subNode(DECL, 1, $1); }
-			| declaration_specifiers init_declarator ';'	{ $$ = subNode(DECL, 2, $1, $2); }
+declaration		: declaration_specifiers ';'			{ $$ = binNode(DECL, $1, nilNode(END)); }
+			| declaration_specifiers init_declarator ';'	{ $$ = binNode(DECL, $1, $2); }
 			;
 
-declaration_specifiers	: keywords_specifiers type_specifier declarator	{ $$ = subNode(DECL_SPEC, 3, $1, $2, $3); } 
+declaration_specifiers	: keywords_specifiers type_specifier declarator	{ $$ = binNode(DECL_SPEC, $1, binNode(DECL_SPEC, $2, $3)); } 
 			;
 
 keywords_specifiers	: PUBLIC					{ $$ = nilNode(PUBLIC); }
@@ -86,7 +88,7 @@ type_specifier		: VINT						{ $$ = nilNode(VINT); }
 	
 init_declarator		: ASG initializer				{ $$ = $2; }
 			| ASG IDENT					{ $$ = strNode(IDENT, $2); }
-			| '(' func_parameters ')' body			{ $$ = subNode(INIT_DECL, 2, $2, $4); }
+			| '(' func_parameters ')' body			{ $$ = binNode(INIT_DECL, $2, $4); }
 			;
 
 declarator		: '*' IDENT					{ $$ = strNode(IDENT_PTR, $2); }
@@ -103,30 +105,30 @@ body			: /* no body */					{ $$ = nilNode(END); }
 			;
 
 body_contents		: /* no contents */				{ $$ = nilNode(END); }
-			| parameters body_contents			{ $$ = subNode(BODY, 2, $1, $2); }
-			| statement body_contents			{ $$ = subNode(BODY, 2, $1, $2); }
+			| parameters body_contents			{ $$ = binNode(BODY, $1, $2); }
+			| statement body_contents			{ $$ = binNode(BODY, $1, $2); }
 			;
 
 func_parameters		: func_parameters_aux				{ $$ = $1; }
 			| /* no parameters */				{ $$ = nilNode(END); }
 			;
 
-func_parameters_aux	: parameter					{ $$ = $1; }
-			| parameter ',' func_parameters_aux		{ $$ = subNode(FUNC_PARAM, 2, $1, $3); }
+func_parameters_aux	: parameter					{ $$ = binNode(FUNC_PARAM, $1, nilNode(END)); }
+			| parameter ',' func_parameters_aux		{ $$ = binNode(FUNC_PARAM, $1, $3); }
 			;
 
 parameters		: parameter ';'					{ $$ = $1; }
-			| parameter ',' parameters			{ $$ = subNode(PARAM, 2, $1, $3); }
+			| parameter ',' parameters			{ $$ = binNode(PARAMS, $1, $3); }
 			;
 
-parameter		: type_specifier declarator			{ $$ = subNode(PARAM, 2, $1, $2); }
+parameter		: type_specifier declarator			{ $$ = binNode(PARAM, $1, $2); }
 			;
 
 statement		: selection_statement				{ $$ = $1; }
 			| iteration_statement				{ $$ = $1; }
-			| expression ';'				{ $$ = $1; }
+			| expression ';'				{ $$ = uniNode(EXPR, $1); }
 			| jump_statement				{ $$ = $1; }
-			| left_value '#' expression ';'			{ $$ = subNode(LEFTVALUE, 2, $1, $3); }
+			| left_value '#' expression ';'			{ $$ = binNode(LEFTVALUE, $1, $3); }
 			| statement_body				{ $$ = $1; }
 			| ';'						{ $$ = nilNode(END); }
 			;
@@ -135,7 +137,7 @@ statement_body		: '{' body_contents '}'				{ $$ = $2; }
 			;
 
 left_value		: IDENT						{ $$ = strNode(IDENT, $1); }
-			| IDENT '[' expression ']'			{ $$ = subNode(LEFTVALUE, 2, strNode(IDENT, $1), $3); }
+			| IDENT '[' expression ']'			{ $$ = binNode(LEFTVALUE, strNode(IDENT, $1), $3); }
 			;
 
 selection_statement	: IF expression THEN statement %prec IFX	{ $$ = subNode(IFSTATEMENT, 2, $2, $4); }
@@ -165,13 +167,13 @@ func_invoc_param	: func_invoc_param_aux				{ $$ = $1; }
 			| /* no args */					{ $$ = nilNode(END); }
 			;
 
-func_invoc_param_aux	: expression					{ $$ = $1; }
-			| expression ',' func_invoc_param_aux		{ $$ = subNode(FUNC_PARAM, 2, $1, $3); }
+func_invoc_param_aux	: expression					{ $$ = binNode(FUNC_PARAM, $1, nilNode(END)); }
+			| expression ',' func_invoc_param_aux		{ $$ = binNode(FUNC_PARAM, $1, $3); }
 			;	
 
 expression		: left_value 					{ $$ = $1;}
-	    		| left_value ASG expression			{ $$ = subNode(LEFTVALUE, 2, $1, $3); }
-			| IDENT '(' func_invoc_param ')'		{ $$ = subNode(FUNC_PARAM, 2, strNode(IDENT, $1), $3); }
+	    		| left_value ASG expression			{ $$ = binNode(ASG, $1, $3); }
+			| IDENT '(' func_invoc_param ')'		{ $$ = binNode(FUNC_CALL, strNode(IDENT, $1), $3); }
 			| PP left_value 				{ $$ = uniNode(PP, $2); } 
 			| MM left_value					{ $$ = uniNode(MM, $2); }
 			| left_value PP					{ $$ = uniNode(PPA, $1); }
@@ -199,6 +201,12 @@ expression		: left_value 					{ $$ = $1;}
 			;
 
 %%
+
+char *mklbl(int n) {
+  static char buf[20];
+  sprintf(buf, "_i%d", n);
+  return strdup(buf);
+}
 
 char **yynames =
 #if YYDEBUG > 0

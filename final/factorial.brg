@@ -11,29 +11,66 @@
 #include "postfix.h"
 #include "y.tab.h"
 
-#ifndef U_
-#define U_ "_"
-#endif
-
 extern FILE *outfp;
+extern int lbl;
+extern char *mklbl(int n);
 extern char **yynames;
 
 %}
 %include "y.tab.h"
 %%
-entry_point: DECLS(entry_point, declaration)
-declaration: DECL(declaration_specifiers, END)
-declaration: DECL(declaration_specifiers, init_declarator) 
-declaration_specifiers: DECL_SPEC(keywords_spec, type_spec)
-init_declarator: END
-keywords_spec: PUBLIC
-keywords_spec: PUBLIC_CONST
-keywords_spec: CONST
-keywords_spec: END
-type_spec: VINT
-type_spec: VSTR
-type_spec: VNUMB
-type_spec: VOID
+file: 		ROOT(entry_point)
+entry_point: 	DECLS(declaration, END)
+entry_point: 	DECLS(entry_point, declaration)
+declaration: 	DECL(decl_spec, END)
+declaration: 	DECL(decl_spec, init_decl)
+
+decl_spec: 	DECL_SPEC(keywords_spec, decl_spec)
+decl_spec: 	DECL_SPEC(type_spec, declarator) 
+
+keywords_spec: 	PUBLIC
+keywords_spec: 	PUBLIC_CONST
+keywords_spec: 	CONST
+keywords_spec: 	END
+type_spec: 	VINT
+type_spec: 	VSTR
+type_spec: 	VNUMB
+type_spec: 	VOID
+declarator:	IDENT
+declarator:	IDENT_PTR
+init_decl: 	INTEGER 				1 { fprintf(outfp, pfIMM, p->value.i); }
+init_decl: 	STRING
+init_decl: 	NUMBER
+init_decl: 	IDENT 
+init_decl: 	IDENT_PTR
+init_decl: 	INIT_DECL(func_param, body) 
+func_param: 	END
+func_param: 	FUNC_PARAM(param, END)
+func_param: 	FUNC_PARAM(param, func_param)
+body: 		END
+body: 		BODY(params, body)
+body: 		BODY(stat, body)
+param: 		PARAM(type_spec, declarator)
+params: 	PARAM(type_spec, declarator)
+params: 	PARAMS(param, params)
+stat: 		EXPR(expr)
+stat: 		LEFTVALUE(left_val, expr)
+expr: 		INTEGER 				1 { fprintf(outfp, pfIMM, p->value.i); }
+expr: 		STRING					6 { int i; char *l = mklbl(++lbl);
+							char *str = p->value.s;
+							fprintf(outfp, pfRODATA pfALIGN pfLABEL, l);
+							for (i = 0; str[i] != 0; i++) { fprintf(outfp, pfCHAR, (unsigned char) str[i]); }
+							fprintf(outfp, pfTEXT pfADDR, l); }
+
+expr: 		NUMBER					1 { }
+expr: 		FUNC_CALL(IDENT, func_invoc_param)	2 { fprintf(outfp, pfCALL pfPUSH, p->SUB(0)->value.s); }
+expr: 		ASG(left_val, expr)
+expr:		BINOPSUM(expr, expr)			1 { fprintf(outfp, pfADD); }
+func_invoc_param: END
+func_invoc_param: FUNC_PARAM(expr, END)
+func_invoc_param: FUNC_PARAM(expr, func_invoc_param)
+left_val: 	IDENT
+left_val: 	LEFTVALUE(IDENT, expr)
 %%
 
 void function(char *name, int enter, Node *body) {
@@ -51,5 +88,5 @@ void function(char *name, int enter, Node *body) {
 
 void program(int enter, Node *body) {
 	function("_main", enter, body);
-	fprintf(outfp, pfEXTRN pfEXTRN pfEXTRN pfEXTRN, U_"prints", U_"printi", U_"println", U_"readi");
+	fprintf(outfp, pfEXTRN pfEXTRN pfEXTRN pfEXTRN, "prints", "printi", "println", "readi");
 }
