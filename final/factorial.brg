@@ -16,14 +16,17 @@ extern int lbl;
 extern char *mklbl(int n);
 extern char **yynames;
 
+void declaration(NODEPTR_TYPE p, NODEPTR_TYPE p2);
+void declType(int type, char *name, NODEPTR_TYPE p);
+
 %}
 %include "y.tab.h"
 %%
 file: 		ROOT(entry_point)
 entry_point: 	DECLS(declaration, END)
 entry_point: 	DECLS(entry_point, declaration)
-declaration: 	DECL(decl_spec, END)
-declaration: 	DECL(decl_spec, init_decl)
+declaration: 	DECL(decl_spec, END)			1 { declaration(LEFT_CHILD(p), RIGHT_CHILD(p)); }
+declaration: 	DECL(decl_spec, init_decl)		1 { declaration(LEFT_CHILD(p), RIGHT_CHILD(p)); }
 
 decl_spec: 	DECL_SPEC(keywords_spec, decl_spec)
 decl_spec: 	DECL_SPEC(type_spec, declarator) 
@@ -32,13 +35,13 @@ keywords_spec: 	PUBLIC
 keywords_spec: 	PUBLIC_CONST
 keywords_spec: 	CONST
 keywords_spec: 	END
-type_spec: 	VINT
+type_spec: 	VINT					
 type_spec: 	VSTR
 type_spec: 	VNUMB
 type_spec: 	VOID
 declarator:	IDENT
 declarator:	IDENT_PTR
-init_decl: 	INTEGER 				1 { fprintf(outfp, pfIMM, p->value.i); }
+init_decl: 	INTEGER 				
 init_decl: 	STRING
 init_decl: 	NUMBER
 init_decl: 	IDENT 
@@ -89,4 +92,44 @@ void function(char *name, int enter, Node *body) {
 void program(int enter, Node *body) {
 	function("_main", enter, body);
 	fprintf(outfp, pfEXTRN pfEXTRN pfEXTRN pfEXTRN, "prints", "printi", "println", "readi");
+}
+
+void declaration(NODEPTR_TYPE p, NODEPTR_TYPE p2) {
+	char *name = RIGHT_CHILD(RIGHT_CHILD(p))->value.s;
+	int keySpec = OP_LABEL(LEFT_CHILD(p)),
+	    typSpec = OP_LABEL(LEFT_CHILD(RIGHT_CHILD(p)));
+	if (OP_LABEL(p2) == END) { /* declaration without init */
+		switch (keySpec) {
+			case PUBLIC: 
+				fprintf(outfp, pfEXTRN, name);
+				break;
+			default:
+				declType(typSpec, name, p2);
+				break;
+		}
+	} else {
+		switch (keySpec) {
+			case PUBLIC:
+				//fprintf(outfp, pfEXTRN, name);
+				break;
+			case CONST:
+				fprintf(outfp, pfRODATA);
+				break;
+			case PUBLIC_CONST:
+				fprintf(outfp, pfRODATA, name);
+		}
+		declType(typSpec, name, p2);
+	}
+}
+
+void declType(int type, char *name, NODEPTR_TYPE p) {
+	switch(type) {
+		case VINT: 
+			if (OP_LABEL(p) == END) {
+				fprintf(outfp, pfBSS pfALIGN pfLABEL pfBYTE pfTEXT, name, 4);
+			} else {
+				fprintf(outfp, pfBSS pfALIGN pfLABEL pfINTEGER pfTEXT, name, p->value.i);
+			}
+		break;
+	}
 }
