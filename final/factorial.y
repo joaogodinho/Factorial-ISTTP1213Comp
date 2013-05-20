@@ -25,10 +25,12 @@ As expressões regulares são identificadas pelo número da linha em que se enco
 #include "node.h"
 #include "tabid.h"
 
+int pos; /* local variable offset (no functions inside a function) */
 int lbl; /* label counter for generated labels */
-
-extern void program(int enter, Node *body); 
+extern void declare(NODEPTR_TYPE p, NODEPTR_TYPE p2);
+extern void pushParam(NODEPTR_TYPE expr);
 char *mklbl(int n);
+int makeParam(int isArg, int nArgs, int offset, NODEPTR_TYPE type, NODEPTR_TYPE ident);
 %}
 
 %union {
@@ -43,8 +45,8 @@ char *mklbl(int n);
 %token <d> NUMBER
 %token VOID VINT VSTR PUBLIC VNUMB CONST IF THEN ELSE WHILE
 %token DO FOR IN STEP UPTO DOWNTO BREAK CONTINUE IDENT STRING
-%token ROOT FACEXP NOTEXP ADDREXP VALEXP BINOPSUM BINOPMIN BINOPMUL BINOPDIV BINOPREM BINOPLESS BINOPGREAT BINOPEQ BINOPOR BINOPAND BINOPEQ BINOPGEQ BINOPLEQ BINOPNEQ EXPRESSION
-%token DECLS DECL DECL_SPEC PUBLIC_CONST END IDENT_PTR INIT_DECL FUNC_PARAM PARAM BODY BODY LEFTVALUE IFSTATEMENT IFELSESTATEMENT DOSTATEMENT FORSTATEMENT PPA MMA REFPTR DERPTR PARAMS EXPR FUNC_CALL
+%token PUBLIC_CONST EMPTY DECL_SPEC IDENT_PTR FUNC PARAM JZ JMP ETIQ LABEL END CALL ARGINTEGER ARGSTRING ARGNUMBER INDEX
+%token LOCAL JNZ NEG
 
 %nonassoc IFX '(' ')' '[' ']' PP MM '~' '!'
 %nonassoc ELSE
@@ -56,156 +58,193 @@ char *mklbl(int n);
 %left '*' '/' '%' 
 %nonassoc UMINUS
 
-%type <n> entry_point declaration type_specifier keywords_specifiers init_declarator initializer func_parameters func_parameters_aux func_invoc_param func_invoc_param_aux left_value expression declarator declaration_specifiers body body_contents parameter parameters statement selection_statement iteration_statement statement_body jump_statement for_cond for_step
-
+%type <n> decl_spec decl_init key_spec typ_spec ident type param body body_cont stmt select_stmt expr iter_stmt jump_stmt stmt_body left_val func_invoc_param
+%type <i> decl_func_param params for_cond for_step
 %%
-file			: entry_point					{ program(0, uniNode(ROOT, $1)); }
-			| /* empty file */				
+file			: decls
 			;
 
-entry_point		: declaration					{ $$ = binNode(DECLS, $1, nilNode(END)); }
-			| entry_point declaration			{ $$ = binNode(DECLS, $1, $2); }
+decls			: 
+			| decls decl_spec ';'					{ declare($2, 0); }
+			| decls decl_spec decl_init ';'				{ declare($2, $3); }
+			| decls decl_spec '(' 
+					{ if (OP_LABEL(LEFT_CHILD(RIGHT_CHILD($2))) == VOID) { IDnew(FUNC, RIGHT_CHILD(RIGHT_CHILD($2))->value.s, 0); }
+					  else { IDnew(FUNC, RIGHT_CHILD(RIGHT_CHILD($2))->value.s, 1); } pos = 0; IDpush(); } 
+			  decl_func_param ')' body ';'				{ function(RIGHT_CHILD(RIGHT_CHILD($2))->value.s, -pos, $7); pos = 0; IDpop(); }
 			;
 
-declaration		: declaration_specifiers ';'			{ $$ = binNode(DECL, $1, nilNode(END)); }
-			| declaration_specifiers init_declarator ';'	{ $$ = binNode(DECL, $1, $2); }
+decl_spec		: key_spec typ_spec ident				{ $$ = binNode(DECL_SPEC, $1, binNode(DECL_SPEC, $2, $3)); }
 			;
 
-declaration_specifiers	: keywords_specifiers type_specifier declarator	{ $$ = binNode(DECL_SPEC, $1, binNode(DECL_SPEC, $2, $3)); } 
+key_spec		: PUBLIC						{ $$ = nilNode(PUBLIC); }
+			| PUBLIC CONST						{ $$ = nilNode(PUBLIC_CONST); }
+			| CONST							{ $$ = nilNode(CONST); }
+			| /* no specifiers */					{ $$ = nilNode(EMPTY); }
 			;
 
-keywords_specifiers	: PUBLIC					{ $$ = nilNode(PUBLIC); }
-			| PUBLIC CONST					{ $$ = nilNode(PUBLIC_CONST); }
-			| CONST						{ $$ = nilNode(CONST); }
-			| /* no specifiers */				{ $$ = nilNode(END); }
+typ_spec		: VINT							{ $$ = nilNode(VINT); }
+			| VSTR							{ $$ = nilNode(VSTR); }
+			| VNUMB 						{ $$ = nilNode(VNUMB); }
+			| VOID 							{ $$ = nilNode(VOID); }
 			;
 
-type_specifier		: VINT						{ $$ = nilNode(VINT); }
-			| VSTR						{ $$ = nilNode(VSTR); }
-			| VNUMB						{ $$ = nilNode(VNUMB); }
-			| VOID						{ $$ = nilNode(VOID); }
-			;
-	
-init_declarator		: ASG initializer				{ $$ = $2; }
-			| ASG IDENT					{ $$ = strNode(IDENT, $2); }
-			| '(' func_parameters ')' body			{ $$ = binNode(INIT_DECL, $2, $4); }
+ident			: '*' IDENT						{ $$ = strNode(IDENT_PTR, $2); }
+			| IDENT							{ $$ = strNode(IDENT, $1); }
 			;
 
-declarator		: '*' IDENT					{ $$ = strNode(IDENT_PTR, $2); }
-			| IDENT						{ $$ = strNode(IDENT, $1); }
+decl_init		: ASG type						{ $$ = $2; }
+			| ASG IDENT						{ $$ = strNode(IDENT, $2); }
 			;
 
-initializer		: INTEGER					{ $$ = intNode(INTEGER, $1); }
-			| STRING					{ $$ = strNode(STRING, $1); }
-			| NUMBER					{ $$ = realNode(NUMBER, $1); }
+type			: INTEGER						{ $$ = intNode(INTEGER, $1); }
+			| STRING						{ $$ = strNode(STRING, $1); }
+			| NUMBER						{ $$ = realNode(NUMBER, $1); }
 			;
 
-body			: /* no body */					{ $$ = nilNode(END); }
-			| '{' body_contents '}'				{ $$ = $2; }
+decl_func_param		: /* no params */					{ $$ = 0; }
+			| decl_func_param ',' param				{ $$ = makeParam(1, $1, 8, LEFT_CHILD($3), RIGHT_CHILD($3)) ; }
+			| param							{ $$ = makeParam(1, 0, 8, LEFT_CHILD($1), RIGHT_CHILD($1)) ; }
 			;
 
-body_contents		: /* no contents */				{ $$ = nilNode(END); }
-			| parameters body_contents			{ $$ = binNode(BODY, $1, $2); }
-			| statement body_contents			{ $$ = binNode(BODY, $1, $2); }
+body			: /* no body */						{ $$ = 0; }
+			| '{' body_cont '}'					{ $$ = $2; }
 			;
 
-func_parameters		: func_parameters_aux				{ $$ = $1; }
-			| /* no parameters */				{ $$ = nilNode(END); }
+body_cont		: /* no contents */					{ $$ = nilNode(END); }
+			| body_cont stmt					{ $$ = binNode(';', $1, $2); }
 			;
 
-func_parameters_aux	: parameter					{ $$ = binNode(FUNC_PARAM, $1, nilNode(END)); }
-			| parameter ',' func_parameters_aux		{ $$ = binNode(FUNC_PARAM, $1, $3); }
+param			: typ_spec ident					{ $$ = binNode(PARAM, $1, $2); }
 			;
 
-parameters		: parameter ';'					{ $$ = $1; }
-			| parameter ',' parameters			{ $$ = binNode(PARAMS, $1, $3); }
+params			: params ',' param					{ $$ = makeParam(0, $1, 4, LEFT_CHILD($3), RIGHT_CHILD($3)); }
+			| param							{ $$ = makeParam(0, 0, 4, LEFT_CHILD($1), RIGHT_CHILD($1)); }
 			;
 
-parameter		: type_specifier declarator			{ $$ = binNode(PARAM, $1, $2); }
+stmt			: select_stmt						{ $$ = $1; }
+			| iter_stmt						{ $$ = $1; }
+			| jump_stmt						{ $$ = $1; }
+			| stmt_body						{ $$ = $1; }
+			| left_val '#' expr ';'					{ $$ = $1; }
+			| expr ';'						{ $$ = $1; }
+			| params ';'						{ $$ = nilNode(PARAM); }
 			;
 
-statement		: selection_statement				{ $$ = $1; }
-			| iteration_statement				{ $$ = $1; }
-			| expression ';'				{ $$ = uniNode(EXPR, $1); }
-			| jump_statement				{ $$ = $1; }
-			| left_value '#' expression ';'			{ $$ = binNode(LEFTVALUE, $1, $3); }
-			| statement_body				{ $$ = $1; }
-			| ';'						{ $$ = nilNode(END); }
+select_stmt		: IF expr THEN stmt %prec IFX				{ int lbl1 = ++lbl; 
+										$$ = seqNode(';', 3, 
+											binNode(JZ, $2/* expr  */, 
+											strNode(ETIQ, mklbl(lbl1))), $4/* stmt */, 
+											strNode(LABEL, mklbl(lbl1))); }
+			| IF expr THEN stmt ELSE stmt				{ int lbl1 = ++lbl, lbl2 = ++lbl;
+										$$ = seqNode(';', 6,
+											binNode(JZ, $2/* expr */, strNode(ETIQ, mklbl(lbl1))), $4/* stmt */,
+											strNode(JMP, mklbl(lbl2)), 
+											strNode(LABEL, mklbl(lbl1)), $6 /* else stmt */,
+											strNode(LABEL, mklbl(lbl2))); }
 			;
 
-statement_body		: '{' body_contents '}'				{ $$ = $2; }
+iter_stmt		: DO stmt WHILE expr ';'				{ int lbl1 = ++lbl, lbl2 = ++lbl;
+										$$ = seqNode(';', 4,								
+											strNode(LABEL, mklbl(lbl2)),
+											$2 /* stmt */,
+											strNode(LABEL, mklbl(lbl1)),
+											binNode(JNZ, $4, strNode(ETIQ, mklbl(lbl2)))); }
+			| FOR left_val IN expr for_cond expr for_step DO stmt	{ $$ = nilNode(FOR); }
 			;
 
-left_value		: IDENT						{ $$ = strNode(IDENT, $1); }
-			| IDENT '[' expression ']'			{ $$ = binNode(LEFTVALUE, strNode(IDENT, $1), $3); }
+for_cond		: UPTO							{ $$ = 0; }
+			| DOWNTO						{ $$ = 0; }
+			;
+for_step		: STEP expr						{ $$ = 0; }
+			| /* normal step */					{ $$ = 0; }
 			;
 
-selection_statement	: IF expression THEN statement %prec IFX	{ $$ = subNode(IFSTATEMENT, 2, $2, $4); }
-			| IF expression THEN statement ELSE statement	{ $$ = subNode(IFELSESTATEMENT, 3, $2, $4, $6); }
+jump_stmt		: BREAK ';'						{ $$ = 0; }
+			| BREAK INTEGER ';'					{ $$ = 0; }
+			| CONTINUE ';'						{ $$ = 0; }
+			| CONTINUE INTEGER ';'					{ $$ = 0; }
 			;
 
-
-iteration_statement	: DO statement WHILE expression ';'		{ $$ = subNode(DOSTATEMENT, 2, $2, $4); }
-			| FOR left_value IN expression for_cond expression for_step DO statement { $$ = subNode(FORSTATEMENT, 6, $2, $4, $5, $6, $7, $9); }
+stmt_body		: '{' body_cont '}'					{ $$ = $2; }
 			;
 
-jump_statement		: BREAK INTEGER ';'				{ $$ = intNode(BREAK, $2); }
-			| BREAK ';'					{ $$ = intNode(BREAK, 1); }
-			| CONTINUE INTEGER ';'				{ $$ = intNode(CONTINUE, $2); }
-			| CONTINUE ';'					{ $$ = intNode(CONTINUE, 1); }
+left_val		: IDENT							{ $$ = mkvar($1); }
+			| IDENT '[' expr ']'					{ $$ = binNode(INDEX, mkvar($1), $3); }
 			;
 
-for_cond		: UPTO						{ $$ = nilNode(UPTO); }
-			| DOWNTO					{ $$ = nilNode(DOWNTO); }
+expr			: left_val						{ $$ = $1; }
+			| PP left_val						{ $$ = $2; }
+			| MM left_val						{ $$ = $2; }
+			| left_val PP						{ $$ = $1; }
+			| left_val MM						{ $$ = $1; }
+			| left_val ASG expr					{ $$ = binNode(ASG, $1, $3); }
+			| IDENT '(' func_invoc_param ')'			{ $$ = binNode(CALL, strNode(IDENT, $1), $3); }
+			| type							{ $$ = $1; }
+			| '-' expr %prec UMINUS					{ $$ = uniNode(NEG, $2); }
+			| expr '!'						{ $$ = $1; }
+			| '~' expr						{ $$ = $2; }
+			| '*' expr						{ $$ = $2; }
+			| '&' expr						{ $$ = $2; }
+			| expr '+' expr						{ $$ = binNode('+', $1, $3); }
+			| expr '-' expr						{ $$ = binNode('-', $1, $3); }
+			| expr '*' expr						{ $$ = binNode('*', $1, $3); }
+			| expr '/' expr						{ $$ = binNode('/', $1, $3); }
+			| expr '%' expr						{ $$ = binNode('%', $1, $3); }
+			| expr '<' expr						{ $$ = binNode('<', $1, $3); }
+			| expr '>' expr						{ $$ = binNode('>', $1, $3); }
+			| expr '|' expr						{ $$ = binNode('|', $1, $3); }
+			| expr '&' expr						{ $$ = binNode('&', $1, $3); }
+			| expr '=' expr						{ $$ = binNode('=', $1, $3); }
+			| expr GE expr						{ $$ = binNode(GE, $1, $3); }
+			| expr LE expr						{ $$ = binNode(LE, $1, $3); }
+			| expr NE expr						{ $$ = binNode(NE, $1, $3); }
+			| '(' expr ')'						{ $$ = $2; }
 			;
 
-for_step		: STEP expression				{ $$ = subNode(STEP, 1, $2); }
-			| /* no step */					{ $$ = nilNode(END); }
+func_invoc_param	: /* no args */						{ $$ = nilNode(END); }
+			| func_invoc_param ',' expr				{ $$ = binNode(',', $1, $3); }
+			| expr							{ $$ = $1; }
 			;
-
-func_invoc_param	: func_invoc_param_aux				{ $$ = $1; }
-			| /* no args */					{ $$ = nilNode(END); }
-			;
-
-func_invoc_param_aux	: expression					{ $$ = binNode(FUNC_PARAM, $1, nilNode(END)); }
-			| expression ',' func_invoc_param_aux		{ $$ = binNode(FUNC_PARAM, $1, $3); }
-			;	
-
-expression		: left_value 					{ $$ = $1;}
-	    		| left_value ASG expression			{ $$ = binNode(ASG, $1, $3); }
-			| IDENT '(' func_invoc_param ')'		{ $$ = binNode(FUNC_CALL, strNode(IDENT, $1), $3); }
-			| PP left_value 				{ $$ = uniNode(PP, $2); } 
-			| MM left_value					{ $$ = uniNode(MM, $2); }
-			| left_value PP					{ $$ = uniNode(PPA, $1); }
-			| left_value MM					{ $$ = uniNode(MMA, $1); }
-			| initializer					{ $$ = $1; }
-			| '-' expression %prec UMINUS			{ $$ = uniNode(UMINUS, $2); }
-			| expression '!'				{ $$ = uniNode(FACEXP, $1); }
-			| '~' expression				{ $$ = uniNode(NOTEXP, $2); }
-			| '*' expression				{ $$ = uniNode(REFPTR, $2); }
-			| '&' left_value				{ $$ = uniNode(DERPTR, $2); }
-			| expression '+' expression			{ $$ = binNode(BINOPSUM, $1, $3); }
-			| expression '-' expression			{ $$ = binNode(BINOPMIN, $1, $3); }
-			| expression '*' expression			{ $$ = binNode(BINOPMUL, $1, $3); }
-			| expression '/' expression			{ $$ = binNode(BINOPDIV, $1, $3); }
-			| expression '%' expression			{ $$ = binNode(BINOPREM, $1, $3); }
-			| expression '<' expression			{ $$ = binNode(BINOPLESS, $1, $3); }
-			| expression '>' expression			{ $$ = binNode(BINOPGREAT, $1, $3); }
-			| expression '=' expression			{ $$ = binNode(BINOPEQ, $1, $3); }
-			| expression '|' expression			{ $$ = binNode(BINOPOR, $1, $3); }
-			| expression '&' expression			{ $$ = binNode(BINOPAND, $1, $3); }
-			| expression GE expression			{ $$ = binNode(BINOPGEQ, $1, $3); }
-			| expression LE expression			{ $$ = binNode(BINOPLEQ, $1, $3); }
-			| expression NE expression			{ $$ = binNode(BINOPNEQ, $1, $3); }
-			| '(' expression ')'				{ $$ = uniNode(EXPRESSION, $2); }
-			;
-
 %%
+
+int makeParam(int isArg, int nArgs, int offset, NODEPTR_TYPE type, NODEPTR_TYPE ident) {
+	switch (OP_LABEL(type)) {
+		case VINT: 
+			if (isArg) {
+				IDnew(ARGINTEGER, ident->value.s, offset + nArgs * 4);
+			} else {
+				IDnew(INTEGER, ident->value.s, pos -= 4); 
+			}
+			return ++nArgs;
+		case VSTR: 
+			if (isArg) {
+				IDnew(ARGSTRING, ident->value.s,  offset + nArgs * 4);
+			} else {
+				IDnew(STRING, ident->value.s, pos -= 4);
+			}
+			return ++nArgs;
+		case VNUMB: 
+			if (isArg) {
+				IDnew(ARGNUMBER, ident->value.s, offset + nArgs * 4); 
+			} else {
+				IDnew(NUMBER, ident->value.s, pos -= 8); 
+			}
+			return nArgs + 2;
+	}
+}
 
 char *mklbl(int n) {
   static char buf[20];
   sprintf(buf, "_i%d", n);
   return strdup(buf);
+}
+
+static Node *mkvar(char *name) {
+	long loc;
+	int type = IDfind(name, &loc);
+	if (type == FUNC) { return intNode(LOCAL, 0); }
+	else if ( loc != 0) { return intNode(LOCAL, loc); }
+	else { return strNode(IDENT, name); }
 }
 
 char **yynames =

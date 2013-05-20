@@ -11,125 +11,175 @@
 #include "postfix.h"
 #include "y.tab.h"
 
+#ifndef U_
+#define U_ "_"
+#endif
+
 extern FILE *outfp;
 extern int lbl;
 extern char *mklbl(int n);
 extern char **yynames;
 
-void declaration(NODEPTR_TYPE p, NODEPTR_TYPE p2);
-void declType(int type, char *name, NODEPTR_TYPE p);
+int stk = 0;
+void declare(NODEPTR_TYPE spec, NODEPTR_TYPE init);
+void allocateVar(int typSpec, char *name);
+void initVar(int typSpec, char *name, NODEPTR_TYPE init);
+char *mkFuncName(char *name);
 
 %}
+%term BODY=';' ARGS=',' ADD='+' SUB='-' MUL='*' DIV='/' MOD='%' LT='<' GT='>' OR='|' AND='&' EQ='='
 %include "y.tab.h"
 %%
-file: 		ROOT(entry_point)
-entry_point: 	DECLS(declaration, END)
-entry_point: 	DECLS(entry_point, declaration)
-declaration: 	DECL(decl_spec, END)			1 { declaration(LEFT_CHILD(p), RIGHT_CHILD(p)); }
-declaration: 	DECL(decl_spec, init_decl)		1 { declaration(LEFT_CHILD(p), RIGHT_CHILD(p)); }
+stat: END					
+stat: BODY(stat, stat)
+stat: expr
+stat: PARAM
+stat: STRING					6 { int i; char *l = mklbl(++lbl);
+						    char *str = p->value.s;
+						    fprintf(outfp, pfRODATA pfALIGN pfLABEL, l);
+						    for (i = 0; str[i] != 0; i++) { fprintf(outfp, pfCHAR, (unsigned char) str[i]); }
+						    fprintf(outfp, pfCHAR, 0);
+						    fprintf(outfp, pfTEXT pfADDR, l); }
 
-decl_spec: 	DECL_SPEC(keywords_spec, decl_spec)
-decl_spec: 	DECL_SPEC(type_spec, declarator) 
+stat: JZ(expr,ETIQ)				1 { fprintf(outfp, pfJZ, p->SUB(1)->value.s); }
+stat: JNZ(expr,ETIQ)				1 { fprintf(outfp, pfJNZ, p->SUB(1)->value.s); }
+stat: JMP					1 { fprintf(outfp, pfJMP, p->value.s); }
+stat: LABEL					  { fprintf(outfp, pfLABEL, p->value.s); }
 
-keywords_spec: 	PUBLIC
-keywords_spec: 	PUBLIC_CONST
-keywords_spec: 	CONST
-keywords_spec: 	END
-type_spec: 	VINT					
-type_spec: 	VSTR
-type_spec: 	VNUMB
-type_spec: 	VOID
-declarator:	IDENT
-declarator:	IDENT_PTR
-init_decl: 	INTEGER 				
-init_decl: 	STRING
-init_decl: 	NUMBER
-init_decl: 	IDENT 
-init_decl: 	IDENT_PTR
-init_decl: 	INIT_DECL(func_param, body) 
-func_param: 	END
-func_param: 	FUNC_PARAM(param, END)
-func_param: 	FUNC_PARAM(param, func_param)
-body: 		END
-body: 		BODY(params, body)
-body: 		BODY(stat, body)
-param: 		PARAM(type_spec, declarator)
-params: 	PARAM(type_spec, declarator)
-params: 	PARAMS(param, params)
-stat: 		EXPR(expr)
-stat: 		LEFTVALUE(left_val, expr)
-expr: 		INTEGER 				1 { fprintf(outfp, pfIMM, p->value.i); }
-expr: 		STRING					6 { int i; char *l = mklbl(++lbl);
-							char *str = p->value.s;
-							fprintf(outfp, pfRODATA pfALIGN pfLABEL, l);
-							for (i = 0; str[i] != 0; i++) { fprintf(outfp, pfCHAR, (unsigned char) str[i]); }
-							fprintf(outfp, pfTEXT pfADDR, l); }
+stat: JZ(LT(expr,expr), ETIQ)			1 { fprintf(outfp, pfJGE, p->SUB(1)->value.s); }
+stat: JZ(LE(expr,expr), ETIQ)			1 { fprintf(outfp, pfJGT, p->SUB(1)->value.s); }
+stat: JZ(GT(expr,expr), ETIQ)			1 { fprintf(outfp, pfJLE, p->SUB(1)->value.s); }
+stat: JZ(GE(expr,expr), ETIQ)			1 { fprintf(outfp, pfJLT, p->SUB(1)->value.s); }
+stat: JZ(EQ(expr,expr), ETIQ)			1 { fprintf(outfp, pfJNE, p->SUB(1)->value.s); }
+stat: JZ(NE(expr,expr), ETIQ)			1 { fprintf(outfp, pfJEQ, p->SUB(1)->value.s); }
+stat: JNZ(LT(expr,expr), ETIQ)			1 { fprintf(outfp, pfJLT, p->SUB(1)->value.s); }
+stat: JNZ(LE(expr,expr), ETIQ)			1 { fprintf(outfp, pfJLE, p->SUB(1)->value.s); }
+stat: JNZ(GT(expr,expr), ETIQ)			1 { fprintf(outfp, pfJGT, p->SUB(1)->value.s); }
+stat: JNZ(GE(expr,expr), ETIQ)			1 { fprintf(outfp, pfJGE, p->SUB(1)->value.s); }
+stat: JNZ(EQ(expr,expr), ETIQ)			1 { fprintf(outfp, pfJEQ, p->SUB(1)->value.s); }
+stat: JNZ(NE(expr,expr), ETIQ)			1 { fprintf(outfp, pfJNE, p->SUB(1)->value.s); }
 
-expr: 		NUMBER					1 { }
-expr: 		FUNC_CALL(IDENT, func_invoc_param)	2 { fprintf(outfp, pfCALL pfPUSH, p->SUB(0)->value.s); }
-expr: 		ASG(left_val, expr)
-expr:		BINOPSUM(expr, expr)			1 { fprintf(outfp, pfADD); }
-func_invoc_param: END
-func_invoc_param: FUNC_PARAM(expr, END)
-func_invoc_param: FUNC_PARAM(expr, func_invoc_param)
-left_val: 	IDENT
-left_val: 	LEFTVALUE(IDENT, expr)
+stack: ARGS(stack, stack)
+stack: expr					1 { stk++; }
+stack: END
+
+expr: END
+expr: CALL(IDENT, stack)			1 { fprintf(outfp, pfCALL pfTRASH, mkFuncName(LEFT_CHILD(p)->value.s), 4*stk); stk = 0;
+						    long hasRet;
+						    IDfind(LEFT_CHILD(p)->value.s, &hasRet);
+						    if (hasRet) { fprintf(outfp, pfPUSH); } }
+expr: IDENT					1 { fprintf(outfp, pfADDRV, p->value.s); }
+expr: LOCAL					1 { fprintf(outfp, pfLOCV, p->value.i); }
+expr: INDEX(IDENT, expr)			1 { fprintf(outfp, pfADDRA pfADD pfLOAD, LEFT_CHILD(p)->value.s); }
+expr: INDEX(LOCAL, expr)			1 { fprintf(outfp, pfLOCA pfADD pfLOAD, LEFT_CHILD(p)->value.i); }
+expr: INTEGER					1 { fprintf(outfp, pfIMM, p->value.i); }
+expr: NUMBER					8 { char *l =mklbl(++lbl); 
+							fprintf(outfp, pfRODATA pfALIGN pfLABEL pfDOUBLE, l, p->value.d);
+							fprintf(outfp, pfTEXT pfALIGN pfADDR, l); }
+expr: STRING					6 { int i; char *l = mklbl(++lbl);
+						    char *str = p->value.s;
+						    fprintf(outfp, pfRODATA pfALIGN pfLABEL, l);
+						    for (i = 0; str[i] != 0; i++) { fprintf(outfp, pfCHAR, (unsigned char) str[i]); }
+						    fprintf(outfp, pfCHAR, 0);
+						    fprintf(outfp, pfTEXT pfADDR, l); }
+expr: ASG(IDENT, expr)				1 { fprintf(outfp, pfADDRA, LEFT_CHILD(p)->value.s); }
+expr: ASG(LOCAL, expr)				1 { fprintf(outfp, pfLOCA, LEFT_CHILD(p)->value.i); }
+expr: NEG(expr)					1 { fprintf(outfp, pfNEG); }
+expr: ADD(expr, expr)				1 { fprintf(outfp, pfADD); }
+expr: SUB(expr, expr)				1 { fprintf(outfp, pfSUB); }
+expr: MUL(expr, expr)				1 { fprintf(outfp, pfMUL); }
+expr: DIV(expr, expr)				1 { fprintf(outfp, pfDIV); }
+expr: MOD(expr, expr)				1 { fprintf(outfp, pfMOD); }
+expr: LT(expr, expr)				1 { fprintf(outfp, pfLT); }
+expr: GT(expr, expr)				1 { fprintf(outfp, pfGT); }
+expr: OR(expr, expr)				1 { fprintf(outfp, pfOR); }
+expr: AND(expr, expr)				1 { fprintf(outfp, pfAND); }
+expr: EQ(expr, expr)				1 { fprintf(outfp, pfEQ); }
+expr: GE(expr, expr)				1 { fprintf(outfp, pfGE); }
+expr: LE(expr, expr)				1 { fprintf(outfp, pfLE); }
+expr: NE(expr, expr)				1 { fprintf(outfp, pfNE); }
 %%
+
+/* declares variables */
+void declare(NODEPTR_TYPE spec, NODEPTR_TYPE init) {
+	int keyw = OP_LABEL(LEFT_CHILD(spec)),
+	    type = OP_LABEL(LEFT_CHILD(RIGHT_CHILD(spec)));
+	char *name = RIGHT_CHILD(RIGHT_CHILD(spec))->value.s;
+
+	IDnew(type, name, 0);
+	if (init == 0) { /* not initialized */
+		switch (keyw) {
+			case PUBLIC:
+			case PUBLIC_CONST:
+				fprintf(outfp, pfEXTRN, name);
+				break;
+			default: /* no keywords */
+				fprintf(outfp, pfBSS pfALIGN pfLABEL, name);
+				allocateVar(type, name);
+				break;
+		}
+	} else { /* initialized */
+		switch (keyw) {
+			case PUBLIC: fprintf(outfp, pfDATA pfALIGN pfGLOBL pfLABEL, name, pfOBJ, name); break;
+			case CONST: fprintf(outfp, pfRODATA pfALIGN pfLABEL, name); break;
+			case PUBLIC_CONST: fprintf(outfp, pfGLOBL pfRODATA pfALIGN pfLABEL, name, pfOBJ, name); break;
+			default: /* nokeywords */
+				fprintf(outfp, pfDATA pfALIGN pfLABEL, name);
+				break;
+		}
+		initVar(type, name, init);
+	}
+}
+
+/* allocates memory for unitialized variables */
+void allocateVar(int typSpec, char *name) {
+	if (typSpec != VOID) { 
+		switch (typSpec) {
+			case VINT: /* 4 bytes for ints and strings */
+			case VSTR: fprintf(outfp, pfBYTE, 4); break;
+			case VNUMB: /* 8 bytes for doubles */
+				fprintf(outfp, pfBYTE, 8); break;
+		}
+		fprintf(outfp, pfTEXT); 
+	}
+}
+
+/* allocates memory and initiates it with value */
+void initVar(int typSpec, char *name, NODEPTR_TYPE init) {
+	int i;
+	char *str;
+	switch (OP_LABEL(init)) {
+		case INTEGER: fprintf(outfp, pfINTEGER pfTEXT, init->value.i); break;
+		case STRING:
+			str = init->value.s;
+			for (i = 0; str[i] != 0; i++) { fprintf(outfp, pfCHAR, (unsigned char) str[i]); }
+			fprintf(outfp, pfCHAR pfTEXT, 0);
+			break;
+		case NUMBER: fprintf(outfp, pfDOUBLE pfTEXT, init->value.d); break;
+		case IDENT: break;
+		case IDENT_PTR: break;
+	}
+}
 
 void function(char *name, int enter, Node *body) {
 	int i;
 	extern int trace;
 	if(trace) printNode(body, stdout, yynames);
-	if (body == 0) { fprintf(outfp, pfEXTRN, name); }
+	if (body == 0) { fprintf(outfp, pfEXTRN, mkFuncName(name)); }
 	else {
-		fprintf(outfp, pfTEXT pfALIGN pfGLOBL pfLABEL pfENTER, name, pfFUNC, name, enter);
+		fprintf(outfp, pfTEXT pfALIGN pfGLOBL pfLABEL pfENTER, mkFuncName(name), pfFUNC, mkFuncName(name), enter);
 		if (yyselect(body) == 1) { yyerror("No match for syntactic tree."); }
 		fprintf(outfp, pfLEAVE pfRET);
 		freeNode(body);
 	}
 }
 
-void program(int enter, Node *body) {
-	function("_main", enter, body);
-	fprintf(outfp, pfEXTRN pfEXTRN pfEXTRN pfEXTRN, "prints", "printi", "println", "readi");
+char *mkFuncName(char *name) {
+	static char buf[64];
+	sprintf(buf, "_%s", name);
+	return strdup(buf);
 }
 
-void declaration(NODEPTR_TYPE p, NODEPTR_TYPE p2) {
-	char *name = RIGHT_CHILD(RIGHT_CHILD(p))->value.s;
-	int keySpec = OP_LABEL(LEFT_CHILD(p)),
-	    typSpec = OP_LABEL(LEFT_CHILD(RIGHT_CHILD(p)));
-	if (OP_LABEL(p2) == END) { /* declaration without init */
-		switch (keySpec) {
-			case PUBLIC: 
-				fprintf(outfp, pfEXTRN, name);
-				break;
-			default:
-				declType(typSpec, name, p2);
-				break;
-		}
-	} else {
-		switch (keySpec) {
-			case PUBLIC:
-				//fprintf(outfp, pfEXTRN, name);
-				break;
-			case CONST:
-				fprintf(outfp, pfRODATA);
-				break;
-			case PUBLIC_CONST:
-				fprintf(outfp, pfRODATA, name);
-		}
-		declType(typSpec, name, p2);
-	}
-}
 
-void declType(int type, char *name, NODEPTR_TYPE p) {
-	switch(type) {
-		case VINT: 
-			if (OP_LABEL(p) == END) {
-				fprintf(outfp, pfBSS pfALIGN pfLABEL pfBYTE pfTEXT, name, 4);
-			} else {
-				fprintf(outfp, pfBSS pfALIGN pfLABEL pfINTEGER pfTEXT, name, p->value.i);
-			}
-		break;
-	}
-}
+
+

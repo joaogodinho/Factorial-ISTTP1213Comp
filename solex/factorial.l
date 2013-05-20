@@ -69,7 +69,7 @@ void yyerror(char *s);
 				needsDelim = TRUE;
 				return INTEGER; }
 
--{0,1}[0-9]+\.[0-9]+([eE][0-9]+)?	yylval.d = strtod(yytext, NULL); needsDelim = TRUE; printf("%f\n", yylval.d); return NUMBER; 
+-{0,1}[0-9]+\.[0-9]+([eE][0-9]+)?	yylval.d = strtod(yytext, NULL); needsDelim = TRUE; return NUMBER; 
 
 \"				BEGIN STR;
 <STR>\\([0-9a-fA-F]{1,2})	strTreatHex();

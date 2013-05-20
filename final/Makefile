@@ -11,7 +11,7 @@ $(LANG): $(LANG).y $(LEXDIR)
 	$(LEX) $(LEXDIR)
 	$(BURG) $(LANG).brg
 	make -C ../lib
-	gcc -o $(LANG) -DYYDEBUG -I../lib lex.yy.c y.tab.c yyselect.c ../lib/libutil.a -lm
+	gcc -o $(LANG) -DYYDEBUG -I../lib lex.yy.c y.tab.c yyselect.c ../lib/libfactorial.a -lm
 
 install:: $(LANG)
 	echo "not a delivrable"

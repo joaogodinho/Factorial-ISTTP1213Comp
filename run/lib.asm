@@ -11,9 +11,9 @@ section .bss
 	$buffer	resb	BUFsiz
 
 section .text
-	global println, printsp, printi, readln, readi, _debug
+	global _println, _printsp, _printi, _readln, _readi, _debug
 	global _strlen, _atoi, _itoa, _argc, _argv, _envp
-	extern prints, _readb
+	extern _prints, _readb
 
 _argc:	mov	eax, [_env]
 	mov	eax, [eax]
@@ -45,19 +45,19 @@ _strlen:
 .Lend:	sub	eax, edx
 	ret
 
-println:
+_println:
 	push	dword $nl
-	call	prints
+	call	_prints
 	add	esp, 4
 	ret
 
-printsp:
+_printsp:
 	push	dword $sp
 .Lmais:	;cmp	dword [esp+8], 0
 	mov	eax, [esp+8]
 	cmp	eax, 0
 	jle	.Lfim
-	call	prints
+	call	_prints
 	dec	dword [esp+8]
 	jmp	.Lmais
 .Lfim:	add	esp, 4
@@ -93,12 +93,12 @@ _itoa:
 	inc	eax
 	ret
 
-printi:
+_printi:
 	push	dword [esp+4]
 	call	_itoa
 	add	esp, 4
 	push	eax
-	call	prints
+	call	_prints
 	add	esp, 4
 	ret
 
@@ -150,7 +150,7 @@ _Lend:	xor	eax, eax
 _Lerr:	xor	eax, eax
 	ret
 
-readi:
+_readi:
 	push	dword $bufsiz
 	push	dword $buffer
 	call	_readln

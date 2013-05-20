@@ -17,4 +17,4 @@ clean::
 debug: solex.y $(LANG).l
 	$(YACC) -dv solex.y
 	$(LEX) -dl $(LANG).l
-	gcc -g -o $(LANG) -DYYDEBUG lex.yy.c y.tab.c -lm
+	gcc -g -o $(LANG) -DYYDEBUG -I../lib lex.yy.c y.tab.c -lm

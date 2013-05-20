@@ -1,4 +1,4 @@
-LIB=util
+LIB=factorial
 CFLAGS=-g
 CC=gcc
 
