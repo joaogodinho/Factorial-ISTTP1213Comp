@@ -31,6 +31,7 @@ extern void declare(NODEPTR_TYPE p, NODEPTR_TYPE p2);
 extern void pushParam(NODEPTR_TYPE expr);
 char *mklbl(int n);
 int makeParam(int isArg, int nArgs, int offset, NODEPTR_TYPE type, NODEPTR_TYPE ident);
+NODEPTR_TYPE mAssign(NODEPTR_TYPE lval, NODEPTR_TYPE expr);
 %}
 
 %union {
@@ -43,22 +44,24 @@ int makeParam(int isArg, int nArgs, int offset, NODEPTR_TYPE type, NODEPTR_TYPE 
 %token <i> INTEGER 
 %token <s> STRING IDENT
 %token <d> NUMBER
-%token VOID VINT VSTR PUBLIC VNUMB CONST IF THEN ELSE WHILE
+%token VOID VINT VSTR PUBLIC VNUMB CONST IF THEN ELSE WHILE RSHIFT MASG
 %token DO FOR IN STEP UPTO DOWNTO BREAK CONTINUE IDENT STRING
 %token PUBLIC_CONST EMPTY DECL_SPEC IDENT_PTR FUNC PARAM JZ JMP ETIQ LABEL END CALL ARGINTEGER ARGSTRING ARGNUMBER INDEX
-%token LOCAL JNZ NEG
+%token LOCAL JNZ NEG LVALR EXPRR FLVAL FEXPR
 
 %nonassoc IFX '(' ')' '[' ']' PP MM '~' '!'
 %nonassoc ELSE
 
+%right RSHIFT
 %right ASG
+%right MASG
 %left '|' '&' 
 %left GE LE NE '>' '<' '='
 %left '+' '-'
 %left '*' '/' '%' 
 %nonassoc UMINUS
 
-%type <n> decl_spec decl_init key_spec typ_spec ident type param body body_cont stmt select_stmt expr iter_stmt jump_stmt stmt_body left_val func_invoc_param
+%type <n> decl_spec decl_init key_spec typ_spec ident type param body body_cont stmt select_stmt expr iter_stmt jump_stmt stmt_body left_val func_invoc_param mul_asg left_valr expr_r
 %type <i> decl_func_param params for_cond for_step
 %%
 file			: decls
@@ -172,11 +175,16 @@ left_val		: IDENT							{ $$ = mkvar($1); }
 			| IDENT '[' expr ']'					{ $$ = binNode(INDEX, mkvar($1), $3); }
 			;
 
-expr			: left_val						{ $$ = $1; }
-			| PP left_val						{ $$ = $2; }
+expr			 
+			/*left_val						{ $$ = $1; }*/
+			: PP left_val						{ $$ = $2; }
 			| MM left_val						{ $$ = $2; }
 			| left_val PP						{ $$ = $1; }
 			| left_val MM						{ $$ = $1; }
+
+			| expr RSHIFT expr					{ $$ = binNode(RSHIFT, $1, $3); }
+			| mul_asg						{ $$ = $1; }
+
 			| left_val ASG expr					{ $$ = binNode(ASG, $1, $3); }
 			| IDENT '(' func_invoc_param ')'			{ $$ = binNode(CALL, strNode(IDENT, $1), $3); }
 			| type							{ $$ = $1; }
@@ -201,11 +209,34 @@ expr			: left_val						{ $$ = $1; }
 			| '(' expr ')'						{ $$ = $2; }
 			;
 
+mul_asg			: left_valr MASG expr_r					{ $$ = mAssign($1, $3); }
+			;
+
+left_valr		: left_valr ',' left_val				{ $$ = binNode(LVALR, $1, $3); }
+			| left_val						{ $$ = uniNode(FLVAL, $1); }
+			;
+expr_r			: expr_r ',' expr					{ $$ = binNode(EXPRR, $1, $3); }
+			| expr							{ $$ = uniNode(FEXPR, $1); }
+			;
+
+
 func_invoc_param	: /* no args */						{ $$ = nilNode(END); }
 			| func_invoc_param ',' expr				{ $$ = binNode(',', $1, $3); }
 			| expr							{ $$ = $1; }
 			;
 %%
+
+NODEPTR_TYPE mAssign(NODEPTR_TYPE lval, NODEPTR_TYPE expr) {
+	if (OP_LABEL(LEFT_CHILD(lval)) == FLVAL && OP_LABEL(LEFT_CHILD(expr)) == FEXPR) { return binNode(MASG, 
+					binNode(ASG, LEFT_CHILD(lval), LEFT_CHILD(lval)), 
+					binNode(ASG, RIGHT_CHILD(lval), RIGHT_CHILD(expr))); }
+	else {
+		return binNode(MASG, 
+				binNode(MASG, LEFT_CHILD(lval), LEFT_CHILD(expr)), 
+				binNode(ASG, RIGHT_CHILD(lval), RIGHT_CHILD(expr)));
+	}	
+}
+
 
 int makeParam(int isArg, int nArgs, int offset, NODEPTR_TYPE type, NODEPTR_TYPE ident) {
 	switch (OP_LABEL(type)) {

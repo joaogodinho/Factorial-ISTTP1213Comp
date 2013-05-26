@@ -32,7 +32,7 @@ As expressões regulares são identificadas pelo número da linha em que se enco
 %token <i> INTEGER
 %token <s> VARIABLE STRING
 %token <d> NUMBER
-%token ELSE GE LE EQ NE ASG PP MM
+%token ELSE GE LE EQ NE ASG PP MM RSHIFT MASG
 %token VOID VINT VSTR PUBLIC VNUMB CONST IF THEN ELSE WHILE
 %token DO FOR IN STEP UPTO DOWNTO BREAK CONTINUE IDENT STRING
 

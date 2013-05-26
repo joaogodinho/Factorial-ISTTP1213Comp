@@ -98,6 +98,9 @@ expr: EQ(expr, expr)				1 { fprintf(outfp, pfEQ); }
 expr: GE(expr, expr)				1 { fprintf(outfp, pfGE); }
 expr: LE(expr, expr)				1 { fprintf(outfp, pfLE); }
 expr: NE(expr, expr)				1 { fprintf(outfp, pfNE); }
+
+
+expr: RSHIFT(expr, expr)			1 { fprintf(outfp, pfSHTRS); }
 %%
 
 /* declares variables */

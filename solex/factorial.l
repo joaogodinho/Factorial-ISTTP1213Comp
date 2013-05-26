@@ -30,6 +30,7 @@ void yyerror(char *s);
 ">="				return GE;
 "<="				return LE;
 "<>"				return NE;
+">>"				return RSHIFT;
 ":="				return ASG;
 "++"				return PP;
 "--"				return MM;
